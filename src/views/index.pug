@@ -1,0 +1,161 @@
+doctype html
+html(lang="es")
+  head
+    title Dynamis Dashboard
+    style.
+      body { 
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+        padding: 20px; 
+        background-color: #f0f2f5; 
+        color: #333;
+      }
+      .container { max-width: 900px; margin: 0 auto; }
+      .header { border-bottom: 2px solid #0056b3; padding-bottom: 10px; margin-bottom: 20px; }
+      h1 { color: #0056b3; margin: 0; }
+      .grid-formularios { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 30px; }
+      .card { 
+        background: white; 
+        border-radius: 8px; 
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1); 
+        padding: 20px; 
+        margin-bottom: 20px; 
+      }
+      .card-form { background-color: #e3f2fd; border-left: 4px solid #0056b3; }
+      .card h3 { margin-top: 0; color: #2c3e50; display: flex; justify-content: space-between; align-items: center; }
+      .form-group { margin-bottom: 12px; }
+      label { display: block; font-weight: bold; margin-bottom: 5px; }
+      input, select { width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; }
+      button.btn-primary { padding: 10px 20px; background: #0056b3; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; width: 100%; }
+      button.btn-danger { background-color: #c62828; color: white; border: none; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 0.8em; margin-left: 10px; }
+      .tag { display: inline-block; padding: 3px 8px; border-radius: 12px; font-size: 0.8em; font-weight: bold; background-color: #e8f5e9; color: #2e7d32; }
+      .tag.inactivo { background-color: #ffebee; color: #c62828; }
+      .tiendas-lista { margin-top: 15px; border-top: 1px dashed #ccc; padding-top: 10px; }
+      ul { padding-left: 20px; margin-bottom: 0; }
+      li { margin-bottom: 8px; font-size: 0.9em; color: #555; display: flex; align-items: center;}
+  body
+    div.container
+      div.header
+        h1 Dynamis
+        p Panel de Control Operativo - Base de Datos MongoDB
+
+      //- SECCIÓN DE FORMULARIOS
+      div.grid-formularios
+        div.card.card-form
+          h3 Agregar Nuevo Comercio
+          form#formComercio
+            div.form-group
+              label(for="nombreComercio") Nombre:
+              input#nombreComercio(type="text" required)
+            div.form-group
+              label(for="cuit") CUIT:
+              input#cuit(type="text" required)
+            button.btn-primary(type="submit") Guardar Comercio
+
+        div.card.card-form
+          h3 Agregar Nueva Tienda
+          form#formTienda
+            div.form-group
+              label(for="nombreTienda") Nombre Tienda:
+              input#nombreTienda(type="text" required)
+            div.form-group
+              label(for="dominio") Dominio:
+              input#dominio(type="text" required)
+            div.form-group
+              label(for="comercioSelect") Vincular a Comercio:
+              select#comercioSelect(required)
+                option(value="" disabled selected) Seleccione un comercio...
+                each com in comercios
+                  if com.estado !== 'Inactivo'
+                    option(value=com._id)= com.nombre
+            button.btn-primary(type="submit") Guardar Tienda
+
+      h2 Comercios y Tiendas en Sistema
+
+      if comercios.length === 0
+        p No hay comercios registrados en el sistema.
+      else
+        each comercio in comercios
+          div.card
+            h3
+              span= comercio.nombre
+              if comercio.estado !== 'Inactivo'
+                button.btn-danger(data-id=comercio._id, onclick="eliminarComercio(this.getAttribute('data-id'))") Dar de Baja
+            
+            p CUIT: #{comercio.cuit}
+            p Estado: 
+              if comercio.estado === 'Inactivo'
+                span.tag.inactivo Inactivo
+              else
+                span.tag Activo
+            
+            div.tiendas-lista
+              h4 Tiendas asociadas (#{comercio.tiendas.length}):
+              if comercio.tiendas.length > 0
+                ul
+                  each tienda in comercio.tiendas
+                    li 
+                      span 
+                        strong #{tienda.nombre} 
+                        | - #{tienda.dominio} 
+                      if tienda.estado === 'Inactiva'
+                        span(style="color:red; font-size: 0.8em; margin-left: 5px;") (Dada de baja)
+                      else
+                        button.btn-danger(data-id=tienda._id, onclick="eliminarTienda(this.getAttribute('data-id'))") Baja
+              else
+                p(style="font-size: 0.9em; color: #888; font-style: italic;") No posee tiendas activas.
+
+    //- Scripts de comunicación con la API
+    script.
+      // POST Comercios
+      document.getElementById('formComercio').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const nombre = document.getElementById('nombreComercio').value;
+        const cuit = document.getElementById('cuit').value;
+        const response = await fetch('/api/comercios', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ nombre, cuit })
+        });
+        if(response.ok) window.location.reload();
+      });
+
+      // POST Tiendas
+      document.getElementById('formTienda').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const nombre = document.getElementById('nombreTienda').value;
+        const dominio = document.getElementById('dominio').value;
+        const comercioId = document.getElementById('comercioSelect').value;
+
+        const response = await fetch('/api/tiendas', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ nombre, dominio, comercioId })
+        });
+        if(response.ok) window.location.reload();
+        else alert('Error al crear la tienda');
+      });
+
+      // DELETE Comercio
+      async function eliminarComercio(id) {
+        if(!confirm('¿Estás seguro de que deseas dar de baja este comercio?')) return;
+        
+        const response = await fetch(`/api/comercios/${id}`, { method: 'DELETE' });
+        if(response.ok) {
+          window.location.reload();
+        } else {
+          const data = await response.json();
+          alert(data.error || 'Error al eliminar el comercio');
+        }
+      }
+
+      // DELETE Tienda
+      async function eliminarTienda(id) {
+        if(!confirm('¿Estás seguro de que deseas dar de baja esta tienda?')) return;
+        
+        const response = await fetch(`/api/tiendas/${id}`, { method: 'DELETE' });
+        if(response.ok) {
+          window.location.reload();
+        } else {
+          alert('Error al eliminar la tienda');
+        }
+      }
