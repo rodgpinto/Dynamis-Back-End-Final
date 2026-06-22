@@ -6,7 +6,6 @@ const crearProducto = async (req, res) => {
     try {
         const { nombre, descripcion, precio, stock, tiendaId } = req.body;
 
-        // 1. Validamos que la tienda exista y esté activa
         const tienda = await Tienda.findById(tiendaId);
         if (!tienda || tienda.estado === 'Inactiva') {
             return res.status(400).json({ 
@@ -14,47 +13,39 @@ const crearProducto = async (req, res) => {
             });
         }
 
-        // 2. Buscamos si el producto ya existe en ESTA tienda en particular
-        
+        if (req.usuario.rol === 'Dueño' && tienda.comercioId.toString() !== req.usuario.comercioId.toString()) {
+            return res.status(403).json({ 
+                error: 'Acceso denegado. No podés agregar productos al catálogo de otra empresa.' 
+            });
+        }
+
         const productoExistente = await Producto.findOne({ 
             nombre: { $regex: new RegExp(`^${nombre}$`, 'i') }, 
             tiendaId: tiendaId 
         });
 
-        // 3. Lógica de "Upsert" (Si existe, sumamos stock. Si no, lo creamos)
         if (productoExistente) {
             productoExistente.stock += stock;
-            productoExistente.precio = precio; // Actualizamos al precio de la última tanda
+            productoExistente.precio = precio;
             if (descripcion) productoExistente.descripcion = descripcion;
             
             await productoExistente.save();
-            
             return res.status(200).json({ 
                 mensaje: 'El producto ya existía en el catálogo. Stock incrementado con éxito.', 
                 data: productoExistente 
             });
         }
 
-        // Si no existía, lo creamos de cero
-        const nuevoProducto = new Producto({
-            nombre,
-            descripcion,
-            precio,
-            stock,
-            tiendaId
-        });
-
+        const nuevoProducto = new Producto({ nombre, descripcion, precio, stock, tiendaId });
         await nuevoProducto.save();
+        
         res.status(201).json({ 
             mensaje: 'Producto nuevo incorporado al catálogo con éxito', 
             data: nuevoProducto 
         });
 
     } catch (error) {
-        res.status(500).json({ 
-            error: 'Error interno al procesar el producto', 
-            detalle: error.message 
-        });
+        res.status(500).json({ error: 'Error interno al procesar el producto', detalle: error.message });
     }
 };
 
@@ -81,15 +72,25 @@ const actualizarProducto = async (req, res) => {
         const { id } = req.params;
         const { nombre, descripcion, precio, stock } = req.body;
 
+        const producto = await Producto.findById(id);
+        if (!producto || producto.estado === 'Inactivo') {
+            return res.status(404).json({ error: 'Producto no encontrado.' });
+        }
+
+        if (req.usuario.rol === 'Dueño') {
+            const tiendaDelProducto = await Tienda.findById(producto.tiendaId);
+            if (!tiendaDelProducto || tiendaDelProducto.comercioId.toString() !== req.usuario.comercioId.toString()) {
+                return res.status(403).json({ 
+                    error: 'Acceso denegado. Este producto pertenece al catálogo de otra empresa.' 
+                });
+            }
+        }
+
         const productoActualizado = await Producto.findByIdAndUpdate(
             id,
             { nombre, descripcion, precio, stock },
             { new: true, runValidators: true }
         );
-
-        if (!productoActualizado) {
-            return res.status(404).json({ error: 'Producto no encontrado.' });
-        }
 
         res.status(200).json({
             mensaje: 'Producto actualizado con éxito.',
@@ -97,10 +98,7 @@ const actualizarProducto = async (req, res) => {
         });
 
     } catch (error) {
-        res.status(500).json({ 
-            error: 'Error al actualizar el producto', 
-            detalle: error.message 
-        });
+        res.status(500).json({ error: 'Error al actualizar el producto', detalle: error.message });
     }
 };
 
@@ -109,26 +107,30 @@ const eliminarProducto = async (req, res) => {
     try {
         const { id } = req.params;
 
-        const productoEliminado = await Producto.findByIdAndUpdate(
-            id,
-            { estado: 'Inactivo' },
-            { new: true }
-        );
-
-        if (!productoEliminado) {
+        const producto = await Producto.findById(id);
+        if (!producto) {
             return res.status(404).json({ error: 'Producto no encontrado.' });
         }
 
+        if (req.usuario.rol === 'Dueño') {
+            const tiendaDelProducto = await Tienda.findById(producto.tiendaId);
+            if (!tiendaDelProducto || tiendaDelProducto.comercioId.toString() !== req.usuario.comercioId.toString()) {
+                return res.status(403).json({ 
+                    error: 'Acceso denegado. Este producto pertenece al catálogo de otra empresa.' 
+                });
+            }
+        }
+
+        producto.estado = 'Inactivo';
+        await producto.save();
+
         res.status(200).json({
             mensaje: 'Producto dado de baja (Inactivo) correctamente.',
-            data: productoEliminado
+            data: producto
         });
 
     } catch (error) {
-        res.status(500).json({ 
-            error: 'Error al dar de baja el producto', 
-            detalle: error.message 
-        });
+        res.status(500).json({ error: 'Error al dar de baja el producto', detalle: error.message });
     }
 };
 

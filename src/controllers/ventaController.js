@@ -1,19 +1,28 @@
 const Venta = require('../models/Venta');
 const Producto = require('../models/Producto');
+const Tienda = require('../models/Tienda'); 
 
 // POST /api/ventas
 const registrarVenta = async (req, res) => {
     try {
         const { productoId, cantidad } = req.body;
 
-        // 1. Buscamos el producto en la base de datos
         const producto = await Producto.findById(productoId);
 
         if (!producto || producto.estado === 'Inactivo') {
             return res.status(404).json({ error: 'Producto no encontrado o inactivo.' });
         }
 
-        // 2. Control de Stock Lógico
+        if (req.usuario.rol === 'Empleado' || req.usuario.rol === 'Dueño') {
+            const tiendaDelProducto = await Tienda.findById(producto.tiendaId);
+            
+            if (!tiendaDelProducto || tiendaDelProducto.comercioId.toString() !== req.usuario.comercioId.toString()) {
+                return res.status(403).json({ 
+                    error: 'Operación rechazada: Intento de manipular el inventario de una sucursal externa.' 
+                });
+            }
+        }
+
         if (producto.stock < cantidad) {
             return res.status(400).json({ 
                 error: 'Stock insuficiente para realizar la venta.',
@@ -21,14 +30,11 @@ const registrarVenta = async (req, res) => {
             });
         }
 
-        // 3. Calculamos los totales
         const totalVenta = producto.precio * cantidad;
 
-        // 4. Descontamos el stock del producto
         producto.stock -= cantidad;
-        await producto.save(); // valida que no quede en negativo
+        await producto.save(); 
 
-        // 5. Generamos el registro de la venta
         const nuevaVenta = new Venta({
             productoId: producto._id,
             cantidad: cantidad,
@@ -55,13 +61,25 @@ const registrarVenta = async (req, res) => {
 // GET /api/ventas
 const obtenerVentas = async (req, res) => {
     try {
-        const ventas = await Venta.find()
+        let filtroDeBusqueda = {}; 
+
+        if (req.usuario.rol === 'Dueño' || req.usuario.rol === 'Empleado') {
+            const tiendasDelComercio = await Tienda.find({ comercioId: req.usuario.comercioId });
+            const idsDeTiendas = tiendasDelComercio.map(tienda => tienda._id);
+
+            const productosDelComercio = await Producto.find({ tiendaId: { $in: idsDeTiendas } });
+            const idsDeProductos = productosDelComercio.map(prod => prod._id);
+
+            filtroDeBusqueda = { productoId: { $in: idsDeProductos } };
+        }
+
+        const ventas = await Venta.find(filtroDeBusqueda)
             .populate({
                 path: 'productoId',
                 select: 'nombre tiendaId' 
             })
             .sort({ createdAt: -1 }); 
-
+            
         res.status(200).json({
             mensaje: 'Historial de ventas recuperado exitosamente',
             cantidad: ventas.length,

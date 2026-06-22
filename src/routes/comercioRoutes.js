@@ -1,11 +1,15 @@
 const express = require('express');
 const router = express.Router();
-const comercioController = require('../controllers/comercioController');
-const { validarDatosComercio } = require('../middlewares/validator');
 
-router.post('/', validarDatosComercio, comercioController.crearComercio);
-router.get('/', comercioController.obtenerComercios);
-router.put('/:id', validarDatosComercio, comercioController.actualizarComercio);
-router.delete('/:id', comercioController.eliminarComercio);
+const { protegerRuta, autorizarRoles } = require('../middlewares/authMiddleware');
+const { obtenerComercios, crearComercio, actualizarComercio, eliminarComercio } = require('../controllers/comercioController');
+
+// GET: Sigue siendo público 
+router.get('/', obtenerComercios);
+
+// POST, PUT y DELETE blindados
+router.post('/', protegerRuta, autorizarRoles('Admin'), crearComercio);
+router.put('/:id', protegerRuta, autorizarRoles('Admin'), actualizarComercio);
+router.delete('/:id', protegerRuta, autorizarRoles('Admin'), eliminarComercio);
 
 module.exports = router;

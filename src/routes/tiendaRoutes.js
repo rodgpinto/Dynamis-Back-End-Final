@@ -1,11 +1,14 @@
 const express = require('express');
 const router = express.Router();
-const tiendaController = require('../controllers/tiendaController');
+const { protegerRuta, autorizarRoles } = require('../middlewares/authMiddleware');
+const { obtenerTiendas, crearTienda, actualizarTienda, eliminarTienda } = require('../controllers/tiendaController');
 
-router.post('/', tiendaController.crearTienda);
-router.get('/', tiendaController.obtenerTiendas);
+// GET: Lectura pública o para cualquier logueado
+router.get('/', obtenerTiendas);
 
-router.put('/:id', tiendaController.actualizarTienda);
-router.delete('/:id', tiendaController.eliminarTienda);
+// POST, PUT, DELETE: Solo Administradores y Dueños
+router.post('/', protegerRuta, autorizarRoles('Admin', 'Dueño'), crearTienda);
+router.put('/:id', protegerRuta, autorizarRoles('Admin', 'Dueño'), actualizarTienda);
+router.delete('/:id', protegerRuta, autorizarRoles('Admin', 'Dueño'), eliminarTienda);
 
 module.exports = router;

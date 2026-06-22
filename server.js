@@ -2,6 +2,7 @@ const express = require('express');
 const path = require('path');
 const cors = require('cors');
 
+const authRoutes = require('./src/routes/authRoutes');
 const conectarDB = require('./config/db');
 const Comercio = require('./src/models/Comercio');
 const Tienda = require('./src/models/Tienda');
@@ -85,7 +86,7 @@ app.use('/api/comercios', comercioRoutes);
 app.use('/api/tiendas', tiendaRoutes);
 app.use('/api/productos', productoRoutes);
 app.use('/api/ventas', ventaRoutes);
-
+app.use('/api/auth', authRoutes);
 app.get('/dashboard', async (req, res) => {
     try {
         const listaDeComercios = await Comercio.find().lean();

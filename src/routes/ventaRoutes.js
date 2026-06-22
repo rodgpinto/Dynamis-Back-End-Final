@@ -1,11 +1,12 @@
 const express = require('express');
 const router = express.Router();
+const { protegerRuta, autorizarRoles } = require('../middlewares/authMiddleware');
 const { registrarVenta, obtenerVentas } = require('../controllers/ventaController');
 
-// POST /api/ventas  Registra una nueva venta y descuenta stock
-router.post('/', registrarVenta);
+// GET: Ver historial de ventas (Solo Admin y Dueño)
+router.get('/', protegerRuta, autorizarRoles('Admin', 'Dueño'), obtenerVentas);
 
-// GET /api/ventas  Obtiene el historial completo de ventas
-router.get('/', obtenerVentas);
+// POST: Registrar una nueva venta (Admin, Dueño y Empleado)
+router.post('/', protegerRuta, autorizarRoles('Admin', 'Dueño', 'Empleado'), registrarVenta);
 
 module.exports = router;

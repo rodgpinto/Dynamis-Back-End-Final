@@ -28,17 +28,42 @@ const obtenerTiendas = async (req, res) => {
     }
 };
 
+// PUT /api/tiendas/:id
 const actualizarTienda = async (req, res) => {
     try {
         const { id } = req.params;
-        const tiendaActualizada = await Tienda.findByIdAndUpdate(id, req.body, { new: true });
-        
-        if (!tiendaActualizada) {
+        const { nombre, direccion, telefono } = req.body;
+
+        const tienda = await Tienda.findById(id);
+
+        if (!tienda || tienda.estado === 'Inactiva') {
             return res.status(404).json({ error: 'Tienda no encontrada.' });
         }
-        res.status(200).json({ mensaje: 'Tienda actualizada', data: tiendaActualizada });
+
+        if (req.usuario.rol === 'Dueño') {
+            if (tienda.comercioId.toString() !== req.usuario.comercioId.toString()) {
+                return res.status(403).json({ 
+                    error: 'Acceso denegado. No tienes permisos para modificar una tienda de otro comercio.' 
+                });
+            }
+        }
+
+        tienda.nombre = nombre || tienda.nombre;
+        tienda.direccion = direccion || tienda.direccion;
+        tienda.telefono = telefono || tienda.telefono;
+
+        await tienda.save();
+
+        res.status(200).json({
+            mensaje: 'Tienda actualizada con éxito.',
+            data: tienda
+        });
+
     } catch (error) {
-        res.status(500).json({ error: 'Error al actualizar', detalle: error.message });
+        res.status(500).json({ 
+            error: 'Error al actualizar la tienda', 
+            detalle: error.message 
+        });
     }
 };
 

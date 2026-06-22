@@ -15,8 +15,15 @@ const usuarioSchema = new mongoose.Schema({
     },
     rol: {
         type: String,
-        enum: ['Admin', 'Empleado'],
+        enum: ['Admin','Dueño', 'Empleado'],
         default: 'Empleado'
+    },
+    comercioId: { 
+        type: mongoose.Schema.Types.ObjectId, 
+        ref: 'Comercio',
+        required: function() {
+            return this.rol === 'Dueño' || this.rol === 'Empleado';
+        }
     },
     estado: {
         type: String,
@@ -25,13 +32,13 @@ const usuarioSchema = new mongoose.Schema({
     }
 }, { timestamps: true });
 
-usuarioSchema.pre('save', async function (next) {
+usuarioSchema.pre('save', async function() {
     if (!this.isModified('password')) {
-        return next();
+        return; 
     }
+    
     const salt = await bcrypt.genSalt(10);
     this.password = await bcrypt.hash(this.password, salt);
-    next();
 });
 
 usuarioSchema.methods.compararPassword = async function (passwordIngresada) {
