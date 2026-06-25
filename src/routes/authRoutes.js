@@ -1,11 +1,10 @@
 const express = require('express');
 const router = express.Router();
 const { registrarUsuario, loginUsuario } = require('../controllers/authController');
+const { protegerRuta, autorizarRoles } = require('../middlewares/authMiddleware');
 
-// POST /api/auth/registro
-router.post('/registro', registrarUsuario);
+router.post('/registro', protegerRuta, autorizarRoles('Admin'), registrarUsuario);
 
-// POST /api/auth/login
 router.post('/login', loginUsuario);
 
 module.exports = router;

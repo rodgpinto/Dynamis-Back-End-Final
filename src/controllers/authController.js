@@ -11,7 +11,7 @@ const generarToken = (id, rol) => {
 // POST /api/auth/registro -> Crea un usuario nuevo
 const registrarUsuario = async (req, res) => {
     try {
-        const { email, password, rol } = req.body;
+        const { email, password, rol, comercioId } = req.body; 
 
         const usuarioExiste = await Usuario.findOne({ email });
         if (usuarioExiste) {
@@ -21,19 +21,14 @@ const registrarUsuario = async (req, res) => {
         const usuario = await Usuario.create({
             email,
             password,
-            rol
+            rol,
+            comercioId 
         });
 
-        res.status(201).json({
-            mensaje: 'Usuario creado exitosamente',
-            token: generarToken(usuario._id, usuario.rol) 
-        });
+        res.status(201).json({ mensaje: 'Usuario creado exitosamente' });
 
     } catch (error) {
-        res.status(500).json({ 
-            error: 'Error al registrar el usuario', 
-            detalle: error.message 
-        });
+        res.status(500).json({ error: 'Error al registrar el usuario', detalle: error.message });
     }
 };
 

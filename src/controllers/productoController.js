@@ -53,7 +53,8 @@ const crearProducto = async (req, res) => {
 const obtenerProductosPorTienda = async (req, res) => {
     try {
         const { tiendaId } = req.params;
-        const productos = await Producto.find({ tiendaId, estado: 'Activo' });
+        
+        const productos = await Producto.find({ tiendaId: tiendaId, estado: 'Activo' });
         
         res.status(200).json({
             mensaje: `Catálogo recuperado exitosamente`,
@@ -62,7 +63,11 @@ const obtenerProductosPorTienda = async (req, res) => {
         });
 
     } catch (error) {
-        res.status(500).json({ error: 'Error al consultar el catálogo' });
+        console.log("ERROR EN GET PRODUCTOS:", error); 
+        res.status(500).json({ 
+            error: 'Error interno de Mongoose al consultar el catálogo',
+            detalle: error.message 
+        });
     }
 };
 

@@ -4,12 +4,16 @@ const ventaSchema = new mongoose.Schema({
     productoId: { 
         type: mongoose.Schema.Types.ObjectId, 
         ref: 'Producto', 
-        required: [true, 'El ID del producto es obligatorio'] 
+        required: true 
+    },
+    usuarioId: { 
+        type: mongoose.Schema.Types.ObjectId, 
+        ref: 'Usuario', 
+        required: true 
     },
     cantidad: { 
         type: Number, 
-        required: [true, 'La cantidad es obligatoria'],
-        min: [1, 'La venta debe ser de al menos 1 unidad']
+        required: true 
     },
     precioUnitario: { 
         type: Number, 

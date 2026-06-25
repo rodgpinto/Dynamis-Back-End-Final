@@ -18,11 +18,19 @@ const crearTienda = async (req, res) => {
     }
 };
 
+// GET /api/tiendas
 const obtenerTiendas = async (req, res) => {
     try {
+        let filtroDeBusqueda = {};
         
-        const tiendas = await Tienda.find().populate('comercioId', 'nombre cuit estado');
-        res.status(200).json(tiendas);
+        // Si NO es Admin, solo le devolvemos las tiendas que pertenezcan a la empresa en la que trabaja
+        if (req.usuario.rol !== 'Admin') {
+            filtroDeBusqueda = { comercioId: req.usuario.comercioId };
+        }
+
+        const tiendas = await Tienda.find(filtroDeBusqueda);
+        res.status(200).json({ data: tiendas });
+
     } catch (error) {
         res.status(500).json({ error: 'Error al obtener tiendas', detalle: error.message });
     }
@@ -81,4 +89,13 @@ const eliminarTienda = async (req, res) => {
     }
 };
 
-module.exports = { crearTienda, obtenerTiendas, actualizarTienda, eliminarTienda };
+// PUT /api/tiendas/:id/activar
+const reactivarTienda = async (req, res) => {
+    try {
+        const tienda = await Tienda.findByIdAndUpdate(req.params.id, { estado: 'Activa' }, { new: true });
+        res.status(200).json({ data: tienda });
+    } catch (error) {
+        res.status(500).json({ error: 'Error al reactivar tienda' });
+    }
+};
+module.exports = { crearTienda, obtenerTiendas, actualizarTienda, eliminarTienda, reactivarTienda };

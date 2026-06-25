@@ -1,12 +1,11 @@
 const Venta = require('../models/Venta');
 const Producto = require('../models/Producto');
-const Tienda = require('../models/Tienda'); 
+const Tienda = require('../models/Tienda');
 
 // POST /api/ventas
 const registrarVenta = async (req, res) => {
     try {
         const { productoId, cantidad } = req.body;
-
         const producto = await Producto.findById(productoId);
 
         if (!producto || producto.estado === 'Inactivo') {
@@ -15,28 +14,22 @@ const registrarVenta = async (req, res) => {
 
         if (req.usuario.rol === 'Empleado' || req.usuario.rol === 'Dueño') {
             const tiendaDelProducto = await Tienda.findById(producto.tiendaId);
-            
             if (!tiendaDelProducto || tiendaDelProducto.comercioId.toString() !== req.usuario.comercioId.toString()) {
-                return res.status(403).json({ 
-                    error: 'Operación rechazada: Intento de manipular el inventario de una sucursal externa.' 
-                });
+                return res.status(403).json({ error: 'Operación rechazada: Intento de manipular inventario externo.' });
             }
         }
 
         if (producto.stock < cantidad) {
-            return res.status(400).json({ 
-                error: 'Stock insuficiente para realizar la venta.',
-                stockDisponible: producto.stock
-            });
+            return res.status(400).json({ error: 'Stock insuficiente.', stockDisponible: producto.stock });
         }
 
         const totalVenta = producto.precio * cantidad;
-
         producto.stock -= cantidad;
         await producto.save(); 
 
         const nuevaVenta = new Venta({
             productoId: producto._id,
+            usuarioId: req.usuario.id, 
             cantidad: cantidad,
             precioUnitario: producto.precio,
             total: totalVenta
@@ -44,17 +37,9 @@ const registrarVenta = async (req, res) => {
 
         await nuevaVenta.save();
 
-        res.status(201).json({
-            mensaje: 'Venta registrada exitosamente',
-            data: nuevaVenta,
-            stockRestante: producto.stock
-        });
-
+        res.status(201).json({ mensaje: 'Venta registrada exitosamente', data: nuevaVenta });
     } catch (error) {
-        res.status(500).json({ 
-            error: 'Error interno al procesar la venta', 
-            detalle: error.message 
-        });
+        res.status(500).json({ error: 'Error interno al procesar la venta', detalle: error.message });
     }
 };
 
@@ -65,36 +50,21 @@ const obtenerVentas = async (req, res) => {
 
         if (req.usuario.rol === 'Dueño' || req.usuario.rol === 'Empleado') {
             const tiendasDelComercio = await Tienda.find({ comercioId: req.usuario.comercioId });
-            const idsDeTiendas = tiendasDelComercio.map(tienda => tienda._id);
-
+            const idsDeTiendas = tiendasDelComercio.map(t => t._id);
             const productosDelComercio = await Producto.find({ tiendaId: { $in: idsDeTiendas } });
-            const idsDeProductos = productosDelComercio.map(prod => prod._id);
-
+            const idsDeProductos = productosDelComercio.map(p => p._id);
             filtroDeBusqueda = { productoId: { $in: idsDeProductos } };
         }
 
         const ventas = await Venta.find(filtroDeBusqueda)
-            .populate({
-                path: 'productoId',
-                select: 'nombre tiendaId' 
-            })
+            .populate({ path: 'productoId', select: 'nombre tiendaId' })
+            .populate({ path: 'usuarioId', select: 'email rol' }) 
             .sort({ createdAt: -1 }); 
             
-        res.status(200).json({
-            mensaje: 'Historial de ventas recuperado exitosamente',
-            cantidad: ventas.length,
-            data: ventas
-        });
-
+        res.status(200).json({ data: ventas });
     } catch (error) {
-        res.status(500).json({ 
-            error: 'Error al consultar el historial de ventas',
-            detalle: error.message 
-        });
+        res.status(500).json({ error: 'Error al consultar el historial', detalle: error.message });
     }
 };
 
-module.exports = { 
-    registrarVenta,
-    obtenerVentas 
-};
+module.exports = { registrarVenta, obtenerVentas };
