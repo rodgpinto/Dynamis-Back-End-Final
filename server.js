@@ -47,20 +47,36 @@ app.use('/api/tiendas', tiendaRoutes);
 app.use('/api/productos', productoRoutes);
 app.use('/api/ventas', ventaRoutes);
 
-// 9. Lógica de WebSockets (Chat de Soporte)
+// 9. Lógica de WebSockets (Chat por Roles)
 io.on('connection', (socket) => {
-    console.log(` Nuevo cliente conectado al soporte: ${socket.id}`);
+    console.log(`🔌 Cliente conectado: ${socket.id}`);
 
-    // Escuchamos los mensajes que manda el FrontEnd
-    socket.on('mensaje_cliente', (data) => {
-        console.log('Mensaje recibido:', data);
-        
-        // Retransmitimos el mensaje a todos los conectados
-        io.emit('mensaje_servidor', data); 
+    socket.on('unirseAConversacion', (data) => {
+        if (!data || !data.usuarioId) return;
+
+        if (data.rol === 'Admin') {
+            socket.join('sala_soporte');
+            console.log(`🛡️ Admin ${data.usuarioId} unido a la central de soporte.`);
+        } else {
+            const salaPrivada = `usuario_${data.usuarioId}`;
+            socket.join(salaPrivada);
+            console.log(`👤 Usuario ${data.usuarioId} unido a sala: ${salaPrivada}`);
+        }
     });
 
-    socket.on('disconnect', () => {
-        console.log(`❌ Cliente desconectado: ${socket.id}`);
+    socket.on('mensaje_cliente', (data) => {
+        
+        if (data.rol === 'Admin') {
+            const salaDestino = `usuario_${data.para}`;
+            io.to(salaDestino).emit('mensaje_servidor', data);
+            
+            io.to('sala_soporte').emit('mensaje_servidor', data);
+        } else {
+            io.to('sala_soporte').emit('mensaje_servidor', data);
+            
+            const salaPrivada = `usuario_${data.usuarioId}`;
+            io.to(salaPrivada).emit('mensaje_servidor', data);
+        }
     });
 });
 

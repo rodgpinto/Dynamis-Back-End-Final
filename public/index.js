@@ -6,7 +6,7 @@ let tokenGlobal = '';
 let usuarioGlobal = null;
 let comerciosGlobal = [];
 let tiendasGlobal = [];
-const socket = io(); 
+const socket = io();
 
 // ==========================================================================
 // 2. UTILIDADES GENERALES
@@ -44,6 +44,12 @@ document.getElementById('loginForm')?.addEventListener('submit', async (e) => {
             tokenGlobal = data.token;
             usuarioGlobal = data.usuario;
 
+            // 🟢 ACÁ ESTÁ EL EMIT: Le avisamos al socket quién se conectó y qué rol tiene
+            socket.emit('unirseAConversacion', {
+                usuarioId: usuarioGlobal.id,
+                rol: usuarioGlobal.rol
+            });
+
             document.getElementById('loginScreen')?.classList.add('hidden');
             document.getElementById('dashboardScreen')?.classList.remove('hidden');
 
@@ -56,7 +62,6 @@ document.getElementById('loginForm')?.addEventListener('submit', async (e) => {
                 userBadge.innerText = `Usuario: ${nombre} ${apellido}\nRol: ${data.usuario.rol}\nEmpresa: ${empresa}`;
             }
 
-            // Gestión de Permisos UI
             const rol = data.usuario.rol;
             if (rol === 'Dueño') {
                 document.getElementById('cajaRolesRegistro')?.classList.add('hidden');
@@ -85,6 +90,7 @@ document.getElementById('loginForm')?.addEventListener('submit', async (e) => {
     }
 });
 
+// Botón de Logout 
 document.getElementById('btnLogout')?.addEventListener('click', () => {
     tokenGlobal = '';
     usuarioGlobal = null;
@@ -173,38 +179,6 @@ socket.on('connect', () => console.log('✅ Conectado al chat. Socket ID:', sock
 function toggleChat() {
     document.getElementById('chatWindow')?.classList.toggle('hidden');
 }
-
-function enviarMensajeChat(e) {
-    e.preventDefault();
-    const input = document.getElementById('chatInput');
-    const texto = input.value.trim();
-
-    if (texto !== "" && usuarioGlobal) {
-        let nombreAutor = '';
-        if (usuarioGlobal.rol === 'Admin') {
-            nombreAutor = '🛠️ Soporte Dynamis';
-        } else {
-            const nombre = usuarioGlobal.nombre || 'Usuario';
-            const empresa = usuarioGlobal.comercioNombre || 'Sistema';
-            nombreAutor = `👤 ${nombre} | ${usuarioGlobal.rol} - ${empresa}`;
-        }
-
-        socket.emit('mensaje_cliente', { id: socket.id, autor: nombreAutor, texto: texto });
-        input.value = '';
-    }
-}
-
-socket.on('mensaje_servidor', (data) => {
-    const chatMessages = document.getElementById('chatMessages');
-    if (!chatMessages) return;
-
-    const div = document.createElement('div');
-    div.className = data.id === socket.id ? 'chat-msg msg-propio' : 'chat-msg msg-ajeno';
-    div.innerHTML = `<span class="msg-autor">${data.autor}</span>${data.texto}`;
-
-    chatMessages.appendChild(div);
-    chatMessages.scrollTop = chatMessages.scrollHeight;
-});
 // ==========================================================================
 // 8. RENDERIZADO DE DATOS (PINTAR EL HTML)
 // ==========================================================================
@@ -314,9 +288,9 @@ async function cargarVentas() {
 
             tbody.innerHTML = ventas.map(v => {
                 const fecha = new Date(v.createdAt).toLocaleDateString('es-AR', { hour: '2-digit', minute: '2-digit' });
-                
+
                 const vendedor = v.usuarioId ? v.usuarioId.email : 'N/A';
-                
+
                 const producto = v.productoId ? v.productoId.nombre : 'Producto Eliminado';
 
                 return `
@@ -425,7 +399,7 @@ async function cambiarEstadoTienda(id, accion) {
 // ==========================================================================
 
 document.getElementById('formComercio')?.addEventListener('submit', async (e) => {
-    e.preventDefault(); 
+    e.preventDefault();
     const payload = {
         nombre: document.getElementById('nombreComercio').value.trim(),
         cuit: document.getElementById('cuitComercio').value.trim()
@@ -444,7 +418,7 @@ document.getElementById('formComercio')?.addEventListener('submit', async (e) =>
         if (res.ok) {
             alert('✅ Comercio registrado con éxito');
             document.getElementById('formComercio').reset();
-            await actualizarDatosGlobales(); 
+            await actualizarDatosGlobales();
         } else {
             const data = await res.json();
             alert(`❌ Error: ${data.error || 'No se pudo crear el comercio'}`);
@@ -669,7 +643,7 @@ function llenarSelectTiendasVenta() {
             tiendasFiltradas = tiendasGlobal.filter(t => t.comercioId === miComercioId && t.estado === 'Activa');
         }
 
-        select.innerHTML = '<option value="">Seleccione una tienda...</option>' + 
+        select.innerHTML = '<option value="">Seleccione una tienda...</option>' +
             tiendasFiltradas.map(t => {
                 if (miRol === 'Admin') {
                     const com = comerciosGlobal.find(c => c._id === t.comercioId);
@@ -677,7 +651,7 @@ function llenarSelectTiendasVenta() {
                 }
                 return `<option value="${t._id}">${t.nombre}</option>`;
             }).join('');
-            
+
     } catch (error) {
         console.error("Error al procesar permisos de tiendas para ventas:", error);
     }
@@ -706,7 +680,7 @@ async function actualizarProductosVenta() {
             return;
         }
 
-        selectProducto.innerHTML = '<option value="">Seleccione un producto...</option>' + 
+        selectProducto.innerHTML = '<option value="">Seleccione un producto...</option>' +
             productos.map(p => `<option value="${p._id}">${p.nombre} ($${p.precio}) [Disponibles: ${p.stock}]</option>`).join('');
 
     } catch (error) {
@@ -731,9 +705,9 @@ document.getElementById('formVenta')?.addEventListener('submit', async (e) => {
     try {
         const res = await fetch(`${API_URL}/ventas`, {
             method: 'POST',
-            headers: { 
+            headers: {
                 'Content-Type': 'application/json',
-                'Authorization': `Bearer ${tokenGlobal}` 
+                'Authorization': `Bearer ${tokenGlobal}`
             },
             body: JSON.stringify(payload)
         });
@@ -743,9 +717,9 @@ document.getElementById('formVenta')?.addEventListener('submit', async (e) => {
         if (res.ok) {
             alert('✅ Venta procesada correctamente. Stock actualizado.');
             document.getElementById('formVenta').reset();
-            
+
             document.getElementById('selectProductoVenta').innerHTML = '<option value="">Primero seleccione una tienda...</option>';
-            
+
             await cargarVentas();
             if (typeof buscarProductosPorTienda === 'function') buscarProductosPorTienda();
         } else {
@@ -755,3 +729,109 @@ document.getElementById('formVenta')?.addEventListener('submit', async (e) => {
         console.error("Error en flujo de transacciones:", error);
     }
 });
+// ==========================================================================
+// 15. CHAT DE SOPORTE - LÓGICA DE ROLES Y VENTANAS MULTIPLES
+// ==========================================================================
+
+// Contenedor global para las ventanas del admin (se inyecta al final del body)
+const adminChatsContainer = document.createElement('div');
+adminChatsContainer.id = 'adminChatsContainer';
+document.body.appendChild(adminChatsContainer);
+
+// Al recibir un mensaje del servidor
+socket.on('mensaje_servidor', (data) => {
+    if (!data || !data.mensaje) return;
+
+    // 1. SI SOY ADMIN: Dibuja o actualiza las ventanitas
+    if (usuarioGlobal.rol === 'Admin') {
+        const idConversacion = data.rol === 'Admin' ? data.para : data.usuarioId;
+        const nombreConversacion = data.rol === 'Admin' ? 'Yo' : (data.de || 'Usuario Desconocido');
+
+        let cajaChat = document.getElementById(`chatAdmin_${idConversacion}`);
+        
+        if (!cajaChat) {
+            cajaChat = document.createElement('div');
+            cajaChat.className = 'admin-chat-box';
+            cajaChat.id = `chatAdmin_${idConversacion}`;
+            cajaChat.innerHTML = `
+                <div class="admin-chat-header" onclick="this.nextElementSibling.classList.toggle('hidden')">
+                    <span style="font-size: 0.75rem;">${nombreConversacion}</span>
+                    <button onclick="document.getElementById('chatAdmin_${idConversacion}').remove()" style="background:none; border:none; color:white; font-weight:bold;">✖</button>
+                </div>
+                <div class="admin-chat-messages" id="msgs_${idConversacion}"></div>
+                <form class="admin-chat-input" onsubmit="enviarMensajeAdmin(event, '${idConversacion}')">
+                    <input type="text" id="input_${idConversacion}" autocomplete="off" required placeholder="Responder...">
+                    <button type="submit">➤</button>
+                </form>
+            `;
+            adminChatsContainer.appendChild(cajaChat);
+        }
+
+        const msgsContainer = document.getElementById(`msgs_${idConversacion}`);
+        const claseMensaje = data.rol === 'Admin' ? 'msg-propio' : 'msg-ajeno';
+        
+        msgsContainer.innerHTML += `
+            <div class="chat-msg ${claseMensaje}">
+                <span class="msg-autor">${nombreConversacion}</span>
+                <div class="msg-texto">${data.mensaje}</div>
+            </div>`;
+        msgsContainer.scrollTop = msgsContainer.scrollHeight;
+
+    // 2. SI SOY USUARIO NORMAL (Dueño/Empleado): Usa la ventana única
+    } else {
+        const chatMessages = document.getElementById('chatMessages');
+        if (!chatMessages) return;
+
+        const claseMensaje = data.usuarioId === usuarioGlobal.id ? 'msg-propio' : 'msg-ajeno';
+        const nombreMostrar = data.usuarioId === usuarioGlobal.id ? 'Yo' : (data.de || 'Soporte');
+
+        chatMessages.innerHTML += `
+            <div class="chat-msg ${claseMensaje}">
+                <span class="msg-autor">${nombreMostrar}</span>
+                <div class="msg-texto">${data.mensaje}</div>
+            </div>`;
+        chatMessages.scrollTop = chatMessages.scrollHeight;
+    }
+});
+
+// Función para que el Usuario Normal envíe su mensaje desde su panel
+function enviarMensajeChat(e) {
+    e.preventDefault();
+    if (usuarioGlobal.rol === 'Admin') {
+        alert("Sos Admin. Las consultas te van a llegar en ventanas emergentes abajo a la derecha.");
+        return;
+    }
+
+    const input = document.getElementById('chatInput');
+    if (!input.value.trim()) return;
+
+    const nombreUsr = usuarioGlobal.nombre || usuarioGlobal.email || 'Usuario';
+    const empresaUsr = usuarioGlobal.comercioNombre || 'Empresa no asignada';
+    const rolUsr = usuarioGlobal.rol || 'Empleado';
+
+    socket.emit('mensaje_cliente', {
+        de: `${nombreUsr} | ${rolUsr} (${empresaUsr})`, 
+        usuarioId: usuarioGlobal.id,
+        rol: usuarioGlobal.rol,
+        mensaje: input.value
+    });
+    input.value = '';
+}
+
+// Función exclusiva para que el Admin envíe respuestas desde sus ventanitas
+function enviarMensajeAdmin(e, usuarioIdDestino) {
+    e.preventDefault();
+    const input = document.getElementById(`input_${usuarioIdDestino}`);
+    if (!input.value.trim()) return;
+    
+    const nombreAdmin = usuarioGlobal.nombre || 'Central';
+
+    socket.emit('mensaje_cliente', {
+        de: `Soporte Dynamis (${nombreAdmin})`,
+        usuarioId: usuarioGlobal.id,
+        rol: 'Admin',
+        para: usuarioIdDestino,
+        mensaje: input.value
+    });
+    input.value = '';
+}
