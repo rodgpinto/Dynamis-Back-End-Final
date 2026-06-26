@@ -28,7 +28,6 @@ const registrarVenta = async (req, res) => {
         producto.stock -= cantidad;
         await producto.save(); 
 
-        // 🟢 Corregido: usamos usuarioId tal cual está en tu modelo Venta.js
         const nuevaVenta = new Venta({
             productoId: producto._id,
             usuarioId: req.usuario.id, 
@@ -50,12 +49,10 @@ const obtenerVentas = async (req, res) => {
     try {
         let filtro = {};
 
-        // Si el usuario es Empleado, filtramos por su ID
         if (req.usuario.rol === 'Empleado') {
             filtro.usuarioId = req.usuario.id;
         }
 
-        // 🟢 POPULATE CORREGIDO: Usamos usuarioId (que es el nombre real del campo en tu modelo)
         const ventas = await Venta.find(filtro)
             .populate('usuarioId', 'email nombre') 
             .populate('productoId', 'nombre')

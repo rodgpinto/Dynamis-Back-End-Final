@@ -49,7 +49,7 @@ app.use('/api/ventas', ventaRoutes);
 
 // 9. Lógica de WebSockets (Chat de Soporte)
 io.on('connection', (socket) => {
-    console.log(`🔌 Nuevo cliente conectado al soporte: ${socket.id}`);
+    console.log(` Nuevo cliente conectado al soporte: ${socket.id}`);
 
     // Escuchamos los mensajes que manda el FrontEnd
     socket.on('mensaje_cliente', (data) => {

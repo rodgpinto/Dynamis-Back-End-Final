@@ -15,7 +15,6 @@ const obtenerComercios = async (req, res) => {
     try {
         let filtroDeBusqueda = {};
         
-        //  Si NO es Admin, le clavamos el filtro para que solo vea su comercio
         if (req.usuario.rol !== 'Admin') {
             filtroDeBusqueda = { _id: req.usuario.comercioId };
         }
@@ -46,7 +45,6 @@ const actualizarComercio = async (req, res) => {
 const eliminarComercio = async (req, res) => {
     try {
         const { id } = req.params;
-        // Solo cambiamos el estado, no hacemos findByIdAndDelete
         const comercioEliminado = await Comercio.findByIdAndUpdate(
             id,
             { estado: 'Inactivo' },

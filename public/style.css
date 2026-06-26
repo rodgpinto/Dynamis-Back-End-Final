@@ -749,7 +749,6 @@ tr:hover td {
 #chatForm {
     display: flex;
     flex-direction: row;
-    /* Pasa por encima del column de los formularios globales */
     padding: 0.75rem;
     background-color: var(--bg-panel);
     border-top: 1px solid var(--border-color);

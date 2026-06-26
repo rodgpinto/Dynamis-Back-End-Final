@@ -8,10 +8,8 @@ const protegerRuta = (req, res, next) => {
             token = req.headers.authorization.split(' ')[1];
             const decoded = jwt.verify(token, process.env.JWT_SECRET);
             
-            // 🟢 Inyectamos el usuario en la request
             req.usuario = decoded;
             
-            // 🟢 RETURN es fundamental acá para que pase al controlador y frene el middleware
             return next(); 
         } catch (error) {
             return res.status(401).json({ error: 'Token no válido o expirado' });

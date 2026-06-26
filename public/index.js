@@ -4,9 +4,9 @@
 const API_URL = '/api';
 let tokenGlobal = '';
 let usuarioGlobal = null;
-let comerciosGlobal = []; // 🟢 Nueva
+let comerciosGlobal = [];
 let tiendasGlobal = [];
-const socket = io(); // Conexión WebSocket
+const socket = io(); 
 
 // ==========================================================================
 // 2. UTILIDADES GENERALES
@@ -47,7 +47,6 @@ document.getElementById('loginForm')?.addEventListener('submit', async (e) => {
             document.getElementById('loginScreen')?.classList.add('hidden');
             document.getElementById('dashboardScreen')?.classList.remove('hidden');
 
-            // Fallbacks por si es un usuario antiguo sin nombre/apellido/empresa
             const nombre = data.usuario.nombre || 'Administrador';
             const apellido = data.usuario.apellido || 'Maestro';
             const empresa = data.usuario.comercioNombre || 'Sistema Dynamis';
@@ -73,7 +72,6 @@ document.getElementById('loginForm')?.addEventListener('submit', async (e) => {
                 document.getElementById('productoPanelForm')?.classList.remove('hidden');
             }
 
-            // Iniciamos la carga de datos y mostramos la pantalla inicial
             await actualizarDatosGlobales();
             mostrarSeccion('secComercios');
 
@@ -87,7 +85,6 @@ document.getElementById('loginForm')?.addEventListener('submit', async (e) => {
     }
 });
 
-// Botón de Logout directo y efectivo
 document.getElementById('btnLogout')?.addEventListener('click', () => {
     tokenGlobal = '';
     usuarioGlobal = null;
@@ -116,7 +113,6 @@ async function actualizarDatosGlobales() {
             fetch(`${API_URL}/tiendas`, { headers: { 'Authorization': `Bearer ${tokenGlobal}` } })
         ]);
 
-        // 🟢 Ahora los guardamos en las variables globales
         comerciosGlobal = extraerArray(await resCom.json());
         tiendasGlobal = extraerArray(await resTien.json());
 
@@ -124,7 +120,6 @@ async function actualizarDatosGlobales() {
         if (typeof renderizarTiendasIndependientes === 'function') renderizarTiendasIndependientes(tiendasGlobal, comerciosGlobal);
         if (typeof cargarVentas === 'function') cargarVentas();
 
-        // 🟢 Corregimos el nombre exacto de la función y le sumamos la capa de seguridad
         if (typeof llenarSelectTiendasProducto === 'function') llenarSelectTiendasProducto();
         if (typeof llenarSelectTiendasVenta === 'function') llenarSelectTiendasVenta();
 
@@ -214,7 +209,6 @@ socket.on('mensaje_servidor', (data) => {
 // 8. RENDERIZADO DE DATOS (PINTAR EL HTML)
 // ==========================================================================
 
-// Pinta la tabla de Comercios y llena TODOS los <select>
 function renderizarComerciosYListas(comercios, tiendas) {
     const tablaComercios = document.getElementById('tablaComercios');
 
@@ -230,7 +224,6 @@ function renderizarComerciosYListas(comercios, tiendas) {
             </thead>
             <tbody>
                 ${comercios.map(c => {
-            // 🛡️ REGLA: Solo el Admin puede dar de baja comercios
             let botones = '<span style="color: gray; font-size: 0.8rem;">Sin permisos</span>';
 
             if (usuarioGlobal && usuarioGlobal.rol === 'Admin') {
@@ -252,7 +245,6 @@ function renderizarComerciosYListas(comercios, tiendas) {
         `;
     }
 
-    // Llenamos todos los selects de Comercio de una sola vez
     const htmlOpciones = '<option value="">Seleccione un comercio...</option>' +
         comercios.map(c => `<option value="${c._id}">${c.nombre}</option>`).join('');
 
@@ -265,7 +257,6 @@ function renderizarComerciosYListas(comercios, tiendas) {
     if (filtroStock) filtroStock.innerHTML = htmlOpciones;
 }
 
-// Pinta la tabla de Tiendas
 function renderizarTiendasIndependientes(tiendas, comercios) {
     const tablaTiendas = document.getElementById('tablaTiendas');
 
@@ -284,7 +275,6 @@ function renderizarTiendasIndependientes(tiendas, comercios) {
             const comercioPadre = comercios.find(c => c._id === t.comercioId);
             const nombreComercio = comercioPadre ? comercioPadre.nombre : 'Desconocido';
 
-            // 🛡️ REGLA: Admin y Dueño pueden dar de baja tiendas, Empleado no.
             let botones = '<span style="color: gray; font-size: 0.8rem;">Sin permisos</span>';
 
             if (usuarioGlobal && (usuarioGlobal.rol === 'Admin' || usuarioGlobal.rol === 'Dueño')) {
@@ -307,7 +297,6 @@ function renderizarTiendasIndependientes(tiendas, comercios) {
     }
 }
 
-// Trae las ventas desde la API y las pinta en su tabla
 async function cargarVentas() {
     try {
         const res = await fetch(`${API_URL}/ventas`, {
@@ -326,10 +315,8 @@ async function cargarVentas() {
             tbody.innerHTML = ventas.map(v => {
                 const fecha = new Date(v.createdAt).toLocaleDateString('es-AR', { hour: '2-digit', minute: '2-digit' });
                 
-                // 🟢 CAMBIO 1: Buscamos v.usuarioId (tal cual está en tu Venta.js)
                 const vendedor = v.usuarioId ? v.usuarioId.email : 'N/A';
                 
-                // 🟢 CAMBIO 2: Aseguramos que productoId también esté bien (coincide con tu esquema)
                 const producto = v.productoId ? v.productoId.nombre : 'Producto Eliminado';
 
                 return `
@@ -347,7 +334,6 @@ async function cargarVentas() {
         console.error("Error cargando el historial de ventas:", error);
     }
 }
-// Renderiza la tabla de Productos / Stock
 function renderizarProductos(productos) {
     const tablaProductos = document.getElementById('tablaProductos');
 
@@ -388,7 +374,6 @@ function renderizarProductos(productos) {
 // ==========================================================================
 
 async function cambiarEstadoComercio(id, accion) {
-    // Si la acción es 'baja', usamos DELETE. Si es 'reactivar', usamos PUT en tu ruta /activar
     const metodo = accion === 'baja' ? 'DELETE' : 'PUT';
     const url = accion === 'baja' ? `${API_URL}/comercios/${id}` : `${API_URL}/comercios/${id}/activar`;
 
@@ -402,7 +387,6 @@ async function cambiarEstadoComercio(id, accion) {
         });
 
         if (res.ok) {
-            // Si salió bien, volvemos a llamar a la función global para que la tabla se redibuje sola
             await actualizarDatosGlobales();
         } else {
             const data = await res.json();
@@ -440,10 +424,8 @@ async function cambiarEstadoTienda(id, accion) {
 // 10. FORMULARIOS DE ALTA: COMERCIOS Y TIENDAS
 // ==========================================================================
 
-// Crear Nuevo Comercio
 document.getElementById('formComercio')?.addEventListener('submit', async (e) => {
-    e.preventDefault(); // 🟢 Evita que se recargue la página y te desloguee
-
+    e.preventDefault(); 
     const payload = {
         nombre: document.getElementById('nombreComercio').value.trim(),
         cuit: document.getElementById('cuitComercio').value.trim()
@@ -462,7 +444,7 @@ document.getElementById('formComercio')?.addEventListener('submit', async (e) =>
         if (res.ok) {
             alert('✅ Comercio registrado con éxito');
             document.getElementById('formComercio').reset();
-            await actualizarDatosGlobales(); // Redibuja la tabla al instante
+            await actualizarDatosGlobales(); 
         } else {
             const data = await res.json();
             alert(`❌ Error: ${data.error || 'No se pudo crear el comercio'}`);
@@ -476,7 +458,6 @@ document.getElementById('formComercio')?.addEventListener('submit', async (e) =>
 document.getElementById('formTienda')?.addEventListener('submit', async (e) => {
     e.preventDefault();
 
-    // 🟢 Agregamos el dominio al payload para que Mongo no nos rebote
     const payload = {
         nombre: document.getElementById('nombreTienda').value.trim(),
         dominio: document.getElementById('dominioTienda').value.trim(),
@@ -499,7 +480,6 @@ document.getElementById('formTienda')?.addEventListener('submit', async (e) => {
             await actualizarDatosGlobales();
         } else {
             const data = await res.json();
-            // Esto ahora te va a mostrar exactamente qué falló si falta otro dato
             alert(`❌ Error: ${data.error || data.detalle || 'No se pudo crear la tienda'}`);
         }
     } catch (error) {
@@ -520,7 +500,6 @@ function actualizarFiltroTiendas() {
         return;
     }
 
-    // Filtramos usando la memoria global, sin hacerle peticiones innecesarias al Backend
     const tiendasFiltradas = tiendasGlobal.filter(t => t.comercioId === comercioId && t.estado === 'Activa');
 
     selectTienda.innerHTML = '<option value="">Seleccione una tienda...</option>' +
@@ -540,7 +519,6 @@ async function buscarProductosPorTienda() {
     try {
         tablaProductos.innerHTML = '<tr><td colspan="5" style="text-align:center;">Cargando catálogo...</td></tr>';
 
-        // Disparamos directo a la ruta que armamos en productoRoutes.js
         const res = await fetch(`${API_URL}/productos/tienda/${tiendaId}`, {
             headers: { 'Authorization': `Bearer ${tokenGlobal}` }
         });
@@ -559,7 +537,6 @@ async function buscarProductosPorTienda() {
     }
 }
 
-// Dibuja la tabla de Stock con las columnas de IDs (Ideal para probar las Ventas)
 function renderizarProductos(productos, tiendaId) {
     const tablaProductos = document.getElementById('tablaProductos');
 
@@ -602,7 +579,6 @@ function llenarSelectTiendasProducto() {
     if (!select || tiendasGlobal.length === 0) return;
 
     try {
-        // 🟢 Truco Pro: Desencriptamos el Payload del Token en el FrontEnd
         const tokenData = JSON.parse(atob(tokenGlobal.split('.')[1]));
         const miComercioId = tokenData.comercioId;
         const miRol = tokenData.rol;
@@ -617,16 +593,13 @@ function llenarSelectTiendasProducto() {
             tiendasFiltradas = tiendasGlobal.filter(t => t.comercioId === miComercioId && t.estado === 'Activa');
         }
 
-        // Armamos el HTML de las opciones
         select.innerHTML = '<option value="">Seleccione una tienda...</option>' +
             tiendasFiltradas.map(t => {
-                // Si es Admin, le agregamos el nombre del comercio entre paréntesis para que no se maree
                 if (miRol === 'Admin') {
                     const comercioPadre = comerciosGlobal.find(c => c._id === t.comercioId);
                     const nombreCom = comercioPadre ? comercioPadre.nombre : 'Desconocido';
                     return `<option value="${t._id}">${t.nombre} (${nombreCom})</option>`;
                 }
-                // Si es Dueño/Empleado, solo ve el nombre limpio de su sucursal
                 return `<option value="${t._id}">${t.nombre}</option>`;
             }).join('');
 
@@ -641,7 +614,6 @@ function llenarSelectTiendasProducto() {
 document.getElementById('formProducto')?.addEventListener('submit', async (e) => {
     e.preventDefault();
 
-    // 🟢 Ahora capturamos el tiendaId desde el desplegable en lugar de un input de texto
     const payload = {
         nombre: document.getElementById('nombreProducto').value.trim(),
         stock: parseInt(document.getElementById('stockProducto').value, 10),
@@ -665,7 +637,6 @@ document.getElementById('formProducto')?.addEventListener('submit', async (e) =>
             alert('✅ Producto registrado con éxito en el inventario.');
             document.getElementById('formProducto').reset();
 
-            // Si hay una tienda seleccionada en el visor de arriba, actualizamos esa tabla
             if (document.getElementById('filtroTiendaStock').value === payload.tiendaId) {
                 buscarProductosPorTienda();
             }
@@ -681,7 +652,6 @@ document.getElementById('formProducto')?.addEventListener('submit', async (e) =>
 // 14. FLUJO DE VENTAS DINÁMICO (FILTROS POR ROL Y CASCADA)
 // ==========================================================================
 
-// Llena el desplegable de tiendas en la sección Ventas según quién esté navegando
 function llenarSelectTiendasVenta() {
     const select = document.getElementById('selectTiendaVenta');
     if (!select || tiendasGlobal.length === 0) return;
@@ -713,7 +683,6 @@ function llenarSelectTiendasVenta() {
     }
 }
 
-// Se ejecuta automáticamente al cambiar la tienda en el formulario de ventas
 async function actualizarProductosVenta() {
     const tiendaId = document.getElementById('selectTiendaVenta').value;
     const selectProducto = document.getElementById('selectProductoVenta');
@@ -726,7 +695,6 @@ async function actualizarProductosVenta() {
     try {
         selectProducto.innerHTML = '<option value="">Cargando catálogo de productos...</option>';
 
-        // Consultamos al catálogo exclusivo de esa tienda en Mongo
         const res = await fetch(`${API_URL}/productos/tienda/${tiendaId}`, {
             headers: { 'Authorization': `Bearer ${tokenGlobal}` }
         });
@@ -738,7 +706,6 @@ async function actualizarProductosVenta() {
             return;
         }
 
-        // Llenamos el select mostrando el nombre, el precio y el stock disponible
         selectProducto.innerHTML = '<option value="">Seleccione un producto...</option>' + 
             productos.map(p => `<option value="${p._id}">${p.nombre} ($${p.precio}) [Disponibles: ${p.stock}]</option>`).join('');
 
@@ -748,11 +715,9 @@ async function actualizarProductosVenta() {
     }
 }
 
-// Procesador del formulario de ventas actualizado
 document.getElementById('formVenta')?.addEventListener('submit', async (e) => {
     e.preventDefault();
 
-    // 🟢 Capturamos el ID directamente del valor seleccionado en el desplegable
     const payload = {
         productoId: document.getElementById('selectProductoVenta').value,
         cantidad: parseInt(document.getElementById('cantidadVenta').value, 10)
@@ -779,14 +744,12 @@ document.getElementById('formVenta')?.addEventListener('submit', async (e) => {
             alert('✅ Venta procesada correctamente. Stock actualizado.');
             document.getElementById('formVenta').reset();
             
-            // Limpiamos el select secundario hasta que vuelvan a elegir tienda
             document.getElementById('selectProductoVenta').innerHTML = '<option value="">Primero seleccione una tienda...</option>';
             
-            // Refrescamos la tabla histórica de ventas y los datos del visor
             await cargarVentas();
             if (typeof buscarProductosPorTienda === 'function') buscarProductosPorTienda();
         } else {
-            alert(`❌ Error al vender: ${data.error || 'Verifique el stock disponible'}`);
+            alert(` Error al vender: ${data.error || 'Verifique el stock disponible'}`);
         }
     } catch (error) {
         console.error("Error en flujo de transacciones:", error);
