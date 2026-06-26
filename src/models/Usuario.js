@@ -2,41 +2,49 @@ const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 
 const usuarioSchema = new mongoose.Schema({
-    email: { 
-        type: String, 
-        required: true, 
-        unique: true 
+    nombre: {
+        type: String,
+        required: true
+    },    
+    apellido: {
+        type: String,
+        required: true
     },
-    password: { 
-        type: String, 
-        required: true 
-    },
-    rol: { 
-        type: String, 
+    email: {
+        type: String,
         required: true,
-        enum: ['Admin', 'Dueño', 'Empleado'] 
+        unique: true
     },
-    comercioId: { 
-        type: mongoose.Schema.Types.ObjectId, 
+    password: {
+        type: String,
+        required: true
+    },
+    rol: {
+        type: String,
+        required: true,
+        enum: ['Admin', 'Dueño', 'Empleado']
+    },
+    comercioId: {
+        type: mongoose.Schema.Types.ObjectId,
         ref: 'Comercio',
-        required: function() {
+        required: function () {
             return this.rol === 'Dueño' || this.rol === 'Empleado';
         }
     },
-    estado: { 
-        type: String, 
+    estado: {
+        type: String,
         default: 'Activo',
         enum: ['Activo', 'Inactivo']
     }
 }, { timestamps: true });
 
-usuarioSchema.pre('save', async function() {
+usuarioSchema.pre('save', async function () {
     if (!this.isModified('password')) return;
     const salt = await bcrypt.genSalt(10);
     this.password = await bcrypt.hash(this.password, salt);
 });
 
-usuarioSchema.methods.compararPassword = async function(passwordIngresada) {
+usuarioSchema.methods.compararPassword = async function (passwordIngresada) {
     return await bcrypt.compare(passwordIngresada, this.password);
 };
 

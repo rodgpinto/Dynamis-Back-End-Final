@@ -12,10 +12,11 @@ const registrarVenta = async (req, res) => {
             return res.status(404).json({ error: 'Producto no encontrado o inactivo.' });
         }
 
+        // Validación de permisos: Empleados y Dueños solo operan en sus tiendas
         if (req.usuario.rol === 'Empleado' || req.usuario.rol === 'Dueño') {
             const tiendaDelProducto = await Tienda.findById(producto.tiendaId);
             if (!tiendaDelProducto || tiendaDelProducto.comercioId.toString() !== req.usuario.comercioId.toString()) {
-                return res.status(403).json({ error: 'Operación rechazada: Intento de manipular inventario externo.' });
+                return res.status(403).json({ error: 'Operación rechazada: No tienes acceso a este inventario.' });
             }
         }
 
@@ -27,6 +28,7 @@ const registrarVenta = async (req, res) => {
         producto.stock -= cantidad;
         await producto.save(); 
 
+        // 🟢 Corregido: usamos usuarioId tal cual está en tu modelo Venta.js
         const nuevaVenta = new Venta({
             productoId: producto._id,
             usuarioId: req.usuario.id, 
@@ -46,24 +48,24 @@ const registrarVenta = async (req, res) => {
 // GET /api/ventas
 const obtenerVentas = async (req, res) => {
     try {
-        let filtroDeBusqueda = {}; 
+        let filtro = {};
 
-        if (req.usuario.rol === 'Dueño' || req.usuario.rol === 'Empleado') {
-            const tiendasDelComercio = await Tienda.find({ comercioId: req.usuario.comercioId });
-            const idsDeTiendas = tiendasDelComercio.map(t => t._id);
-            const productosDelComercio = await Producto.find({ tiendaId: { $in: idsDeTiendas } });
-            const idsDeProductos = productosDelComercio.map(p => p._id);
-            filtroDeBusqueda = { productoId: { $in: idsDeProductos } };
+        // Si el usuario es Empleado, filtramos por su ID
+        if (req.usuario.rol === 'Empleado') {
+            filtro.usuarioId = req.usuario.id;
         }
 
-        const ventas = await Venta.find(filtroDeBusqueda)
-            .populate({ path: 'productoId', select: 'nombre tiendaId' })
-            .populate({ path: 'usuarioId', select: 'email rol' }) 
-            .sort({ createdAt: -1 }); 
-            
-        res.status(200).json({ data: ventas });
+        // 🟢 POPULATE CORREGIDO: Usamos usuarioId (que es el nombre real del campo en tu modelo)
+        const ventas = await Venta.find(filtro)
+            .populate('usuarioId', 'email nombre') 
+            .populate('productoId', 'nombre')
+            .sort({ createdAt: -1 });
+
+        res.status(200).json(ventas);
+        
     } catch (error) {
-        res.status(500).json({ error: 'Error al consultar el historial', detalle: error.message });
+        console.error("ERROR EN OBTENER VENTAS:", error);
+        res.status(500).json({ error: 'Error al obtener el historial de ventas', detalle: error.message });
     }
 };
 

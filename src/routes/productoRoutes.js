@@ -1,14 +1,21 @@
 const express = require('express');
 const router = express.Router();
+
+// 🟢 1. Importamos la función EXACTAMENTE con el mismo nombre que en el controlador
+const { 
+    crearProducto, 
+    obtenerProductosPorTienda, 
+    actualizarProducto, 
+    eliminarProducto 
+} = require('../controllers/productoController'); 
+
 const { protegerRuta, autorizarRoles } = require('../middlewares/authMiddleware');
-const { crearProducto, obtenerProductosPorTienda, actualizarProducto, eliminarProducto } = require('../controllers/productoController');
 
-// GET: Lectura del catálogo (Suele ser pública o solo requerir estar logueado)
-router.get('/tienda/:tiendaId', obtenerProductosPorTienda);
+// 🟢 2. Modificamos la ruta GET para que encaje con la URL que armaste en el controlador
+router.get('/tienda/:tiendaId', protegerRuta, obtenerProductosPorTienda);
 
-// POST, PUT, DELETE: Protegidos
-router.post('/', protegerRuta, autorizarRoles('Admin', 'Dueño'), crearProducto);
-router.put('/:id', protegerRuta, autorizarRoles('Admin', 'Dueño'), actualizarProducto);
-router.delete('/:id', protegerRuta, autorizarRoles('Admin', 'Dueño'), eliminarProducto);
+router.post('/', protegerRuta, autorizarRoles('Admin', 'Dueño', 'Empleado'), crearProducto);
+router.put('/:id', protegerRuta, autorizarRoles('Admin', 'Dueño', 'Empleado'), actualizarProducto);
+router.delete('/:id', protegerRuta, autorizarRoles('Admin', 'Dueño', 'Empleado'), eliminarProducto);
 
 module.exports = router;

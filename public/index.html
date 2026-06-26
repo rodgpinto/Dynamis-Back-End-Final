@@ -1,75 +1,84 @@
 <!DOCTYPE html>
 <html lang="es">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dynamis - Dashboard Administrativo</title>
-    <link rel="stylesheet" href="./style.css">
+    <title>Dynamis - Panel de Gestión</title>
+    <link rel="stylesheet" href="style.css">
 </head>
+
 <body>
 
-    <div id="loginScreen">
-        <div>
-            <h1>Dynamis S.R.L.</h1>
-            <p>Acceso al Sistema Central</p>
-            
+    <div id="loginScreen" class="login-container">
+        <div class="login-box">
+            <h2>Dynamis</h2>
+            <p>Ingreso al Sistema</p>
             <form id="loginForm">
-                <div>
-                    <label>Correo Electrónico</label>
+                <div class="input-group">
+                    <label>Email</label>
                     <input type="email" id="email" required value="admin@dynamis.com">
                 </div>
-                <div>
+                <div class="input-group">
                     <label>Contraseña</label>
                     <input type="password" id="password" required value="superpassword123">
                 </div>
                 <button type="submit">Iniciar Sesión</button>
+                <p id="loginMessage" class="error-msg"></p>
             </form>
-            <p id="loginMessage"></p>
         </div>
     </div>
 
-    <div id="dashboardScreen" class="hidden">
-        
-        <aside>
-            <div>
+    <div id="dashboardScreen" class="dashboard-container hidden">
+
+        <aside class="sidebar">
+            <div class="sidebar-header">
                 <h2>Dynamis</h2>
-                <p id="userBadge">Cargando...</p>
+                <pre id="userBadge" class="user-badge"></pre>
             </div>
-            <nav>
+
+            <nav class="sidebar-nav">
                 <button onclick="mostrarSeccion('secComercios')">🏢 Gestión Comercios</button>
                 <button onclick="mostrarSeccion('secTiendas')">🏪 Gestión Tiendas</button>
                 <button onclick="mostrarSeccion('secStock')">📦 Visor de Stock</button>
                 <button onclick="mostrarSeccion('secVentas')">📈 Historial de Ventas</button>
             </nav>
-            <div>
-                <button id="btnLogout">Cerrar Sesión</button>
+
+            <div class="sidebar-footer">
+                <button id="btnLogout" class="btn-danger">Cerrar Sesión</button>
             </div>
         </aside>
 
-        <main>
-            
-            <section id="secComercios">
+        <main class="main-content">
+
+            <section id="secComercios" class="seccion-panel">
                 <h2>Comercios en el Sistema</h2>
-                
-                <div id="adminPanels" class="hidden">
-                    <div>
+
+                <div id="adminPanels" class="grid-2-cols">
+                    <div class="panel-card">
                         <h3>Agregar Nuevo Comercio</h3>
                         <form id="formComercio">
-                            <div>
-                                <label>Nombre de la Empresa</label>
-                                <input type="text" id="nombreComercio" required>
-                            </div>
-                            <div>
-                                <label>CUIT</label>
-                                <input type="text" id="cuitComercio" required maxlength="11" oninput="this.value = this.value.replace(/[^0-9]/g, '')">
-                            </div>
+                            <label>Nombre de la Empresa</label>
+                            <input type="text" id="nombreComercio" required>
+                            <label>CUIT</label>
+                            <input type="text" id="cuitComercio" required>
                             <button type="submit">Guardar Comercio</button>
                         </form>
                     </div>
 
-                    <div>
+                    <div class="panel-card">
                         <h3>Registrar Personal</h3>
                         <form id="formUsuario">
+                            <div class="grid-cols-2">
+                                <div>
+                                    <label>Nombre</label>
+                                    <input type="text" id="nombreUsuario" required>
+                                </div>
+                                <div>
+                                    <label>Apellido</label>
+                                    <input type="text" id="apellidoUsuario" required>
+                                </div>
+                            </div>
                             <div class="grid-cols-2">
                                 <div>
                                     <label>Email</label>
@@ -80,18 +89,20 @@
                                     <input type="password" id="passwordUsuario" required>
                                 </div>
                             </div>
-                            <div class="grid-cols-2">
+                            <div class="grid-cols-2" id="cajaRolesRegistro">
                                 <div>
                                     <label>Rol</label>
-                                    <select id="rolUsuario" onchange="controlarVisibilidadComercioUsuario()">
+                                    <select id="rolUsuario">
                                         <option value="Empleado">Empleado</option>
                                         <option value="Dueño">Dueño</option>
                                         <option value="Admin">Admin</option>
                                     </select>
                                 </div>
-                                <div id="boxComercioUsuario">
+                                <div>
                                     <label>Empresa</label>
-                                    <select id="selectComercioUsuario"></select>
+                                    <select id="selectComercioUsuario">
+                                        <option value="">Seleccione un comercio...</option>
+                                    </select>
                                 </div>
                             </div>
                             <button type="submit">Crear Usuario</button>
@@ -99,81 +110,112 @@
                     </div>
                 </div>
 
-                <div id="gridComercios"></div>
+                <div class="table-container mt-2">
+                    <table id="tablaComercios">
+                    </table>
+                </div>
             </section>
 
-            <section id="secTiendas" class="hidden">
-                <h2>Tiendas y Sucursales</h2>
-                
-                <div id="tiendaPanelForm" class="hidden">
-                    <h3>Agregar Nueva Tienda</h3>
+            <section id="secTiendas" class="seccion-panel hidden">
+                <h2>Gestión de Tiendas</h2>
+
+                <div id="tiendaPanelForm" class="panel-card">
+                    <h3>Registrar Nueva Tienda</h3>
                     <form id="formTienda">
-                        <div>
-                            <label>Nombre Tienda</label>
-                            <input type="text" id="nombreTienda" required>
-                        </div>
-                        <div>
-                            <label>Dominio / URL</label>
-                            <input type="text" id="dominioTienda" required>
-                        </div>
-                        <div>
-                            <label>Comercio Padre</label>
-                            <select id="selectComercio" required></select>
+                        <div class="grid-cols-2">
+                            <div>
+                                <label>Nombre de la Tienda</label>
+                                <input type="text" id="nombreTienda" required>
+                            </div>
+                            <div>
+                                <label>Dominio / URL</label>
+                                <input type="text" id="dominioTienda" placeholder="www.mitienda.com.ar" required>
+                            </div>
+                            <div>
+                                <label>Pertenece a la Empresa</label>
+                                <select id="selectComercioTienda" required>
+                                    <option value="">Seleccione un comercio...</option>
+                                </select>
+                            </div>
                         </div>
                         <button type="submit">Guardar Tienda</button>
                     </form>
                 </div>
 
-                <div id="gridTiendas"></div>
+                <div class="table-container mt-2">
+                    <table id="tablaTiendas">
+                    </table>
+                </div>
             </section>
 
-            <section id="secStock" class="hidden">
-                <h2>Gestión de Inventario y Stock</h2>
-                
-                <div id="productoPanelForm" class="hidden">
-                    <h3>Cargar Nuevo Producto al Catálogo</h3>
-                    <form id="formProducto">
+            <section id="secStock" class="seccion-panel hidden">
+                <h2>Visor de Stock</h2>
+
+                <div class="panel-card" style="margin-bottom: 1rem; background-color: var(--bg-sidebar);">
+                    <h3>Consultar Stock por Tienda</h3>
+                    <div class="grid-cols-2">
                         <div>
-                            <label>Nombre del Producto</label>
-                            <input type="text" id="nombreProducto" required>
-                        </div>
-                        <div>
-                            <label>Precio ($)</label>
-                            <input type="number" id="precioProducto" required>
-                        </div>
-                        <div>
-                            <label>Stock Inicial</label>
-                            <input type="number" id="stockProducto" required>
-                        </div>
-                        <div>
-                            <label>Tienda Destino</label>
-                            <select id="selectTiendaProducto" required>
-                                <option value="" disabled selected>Cargando tiendas activas...</option>
+                            <label>1. Empresa</label>
+                            <select id="filtroComercioStock" onchange="actualizarFiltroTiendas()">
+                                <option value="">Seleccione un comercio...</option>
                             </select>
+                        </div>
+                        <div>
+                            <label>2. Sucursal (Tienda)</label>
+                            <select id="filtroTiendaStock" onchange="buscarProductosPorTienda()">
+                                <option value="">Primero seleccione un comercio...</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="productoPanelForm" class="panel-card hidden">
+                    <h3>Registrar Producto Nuevo</h3>
+                    <form id="formProducto">
+                        <div class="grid-cols-2">
+                            <div>
+                                <label>Nombre del Producto</label>
+                                <input type="text" id="nombreProducto" required>
+                            </div>
+                            <div>
+                                <label>Stock Inicial</label>
+                                <input type="number" id="stockProducto" min="0" required>
+                            </div>
+                            <div>
+                                <label>Precio Unitario</label>
+                                <input type="number" id="precioProducto" min="0" required>
+                            </div>
+                            <div>
+                                <label>Tienda de Destino</label>
+                                <select id="selectTiendaProducto" required>
+                                    <option value="">Cargando tiendas...</option>
+                                </select>
+                            </div>
                         </div>
                         <button type="submit">Guardar Producto</button>
                     </form>
                 </div>
 
-                <div>
-                    <div>
-                        <input type="text" id="inputTiendaId" placeholder="Pegá aquí el ID de la Tienda">
-                        <button onclick="cargarStock()">Buscar Catálogo</button>
-                    </div>
-                    <div id="gridStock"></div>
+                <div class="table-container mt-2">
+                    <table id="tablaProductos">
+                        <tr>
+                            <td style="text-align:center;">Seleccione una tienda para ver su stock.</td>
+                        </tr>
+                    </table>
                 </div>
             </section>
 
-            <section id="secVentas" class="hidden">
+            <section id="secVentas" class="seccion-panel hidden">
                 <h2>Historial y Registro de Ventas</h2>
-                
-                <div id="ventaPanelForm">
+
+                <div id="ventaPanelForm" class="panel-card">
                     <h3>Registrar Nueva Venta</h3>
                     <form id="formVenta">
                         <div class="grid-cols-2">
                             <div>
                                 <label>ID del Producto</label>
-                                <input type="text" id="productoIdVenta" placeholder="Pegá el ID del producto aquí" required>
+                                <input type="text" id="productoIdVenta" placeholder="Pegá el ID del producto aquí"
+                                    required>
                             </div>
                             <div>
                                 <label>Cantidad a Vender</label>
@@ -184,18 +226,19 @@
                     </form>
                 </div>
 
-                <div>
+                <div class="table-container mt-2">
                     <table>
                         <thead>
                             <tr>
                                 <th>Fecha</th>
-                                <th>Vendedor</th> 
+                                <th>Vendedor</th>
                                 <th>Producto</th>
                                 <th>Unidades</th>
                                 <th>Total</th>
                             </tr>
                         </thead>
-                        <tbody id="tablaVentas"></tbody>
+                        <tbody id="tablaVentas">
+                        </tbody>
                     </table>
                 </div>
             </section>
@@ -203,6 +246,27 @@
         </main>
     </div>
 
-    <script src="./index.js"></script>
+    <button id="btnChatToggle" onclick="toggleChat()">💬 Chat Soporte</button>
+
+    <div id="chatWindow" class="hidden">
+        <div id="chatHeader">
+            <h4>Soporte Técnico</h4>
+            <button onclick="toggleChat()">✖</button>
+        </div>
+        <div id="chatMessages">
+            <div class="chat-msg msg-ajeno">
+                <span class="msg-autor">Sistema Dynamis</span>
+                ¡Hola! ¿En qué te podemos ayudar hoy?
+            </div>
+        </div>
+        <form id="chatForm" onsubmit="enviarMensajeChat(event)">
+            <input type="text" id="chatInput" placeholder="Escribí tu consulta..." required autocomplete="off">
+            <button type="submit">Enviar</button>
+        </form>
+    </div>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="index.js"></script>
 </body>
+
 </html>

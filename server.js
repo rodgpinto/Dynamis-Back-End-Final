@@ -2,7 +2,9 @@ const express = require('express');
 const path = require('path');
 const cors = require('cors');
 
-// 1. Importación de Base de Datos y Modelos
+// 1. Importación de WebSockets, Base de Datos y Modelos
+const http = require('http'); 
+const { Server } = require('socket.io');
 const conectarDB = require('./config/db');
 const Comercio = require('./src/models/Comercio');
 const Tienda = require('./src/models/Tienda');
@@ -19,30 +21,50 @@ const { validarBodyVacio } = require('./src/middlewares/validator');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// 3. Conexión a MongoDB Atlas
+// 3. Envoltura HTTP y configuración de Socket.io
+const server = http.createServer(app);
+const io = new Server(server, {
+    cors: { origin: '*' }
+});
+
+// 4. Conexión a MongoDB Atlas
 conectarDB();
 
-
-// 4. Middlewares Globales
+// 5. Middlewares Globales
 app.use(cors());
 app.use(express.json());
 
-// 5. Archivos Estáticos (FrontEnd)
-// Al definir el FrontEnd antes del validador estricto, evitamos que bloquee la carga visual
+// 6. Archivos Estáticos (FrontEnd)
 app.use(express.static(path.join(__dirname, 'public')));
 
-// 6. Middlewares Específicos
-// Aplicamos el validador de body exclusivamente a los endpoints de la API
+// 7. Middlewares Específicos
 app.use('/api', validarBodyVacio);
 
-// 7. Rutas de la API
+// 8. Rutas de la API
 app.use('/api/auth', authRoutes);
 app.use('/api/comercios', comercioRoutes);
 app.use('/api/tiendas', tiendaRoutes);
 app.use('/api/productos', productoRoutes);
 app.use('/api/ventas', ventaRoutes);
 
-// 8. Inicialización del Servidor
-app.listen(PORT, () => {
+// 9. Lógica de WebSockets (Chat de Soporte)
+io.on('connection', (socket) => {
+    console.log(`🔌 Nuevo cliente conectado al soporte: ${socket.id}`);
+
+    // Escuchamos los mensajes que manda el FrontEnd
+    socket.on('mensaje_cliente', (data) => {
+        console.log('Mensaje recibido:', data);
+        
+        // Retransmitimos el mensaje a todos los conectados
+        io.emit('mensaje_servidor', data); 
+    });
+
+    socket.on('disconnect', () => {
+        console.log(`❌ Cliente desconectado: ${socket.id}`);
+    });
+});
+
+// 10. Inicialización del Servidor (ATENCIÓN: usamos server.listen, no app.listen)
+server.listen(PORT, () => {
     console.log(`🚀 Servidor Dynamis activo y escuchando en http://localhost:${PORT}`);
 });

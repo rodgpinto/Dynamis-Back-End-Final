@@ -1,58 +1,16 @@
+// ==========================================================================
+// 1. CONFIGURACIÓN GLOBAL Y VARIABLES
+// ==========================================================================
 const API_URL = '/api';
 let tokenGlobal = '';
-let rolGlobal = '';
+let usuarioGlobal = null;
+let comerciosGlobal = []; // 🟢 Nueva
+let tiendasGlobal = [];
+const socket = io(); // Conexión WebSocket
 
-// --- NAVEGACIÓN ---
-function mostrarSeccion(idSeccion) {
-    document.querySelectorAll('main > section').forEach(sec => sec.classList.add('hidden'));
-    document.getElementById(idSeccion).classList.remove('hidden');
-}
-
-function controlarVisibilidadComercioUsuario() {
-    const rol = document.getElementById('rolUsuario').value;
-    const box = document.getElementById('boxComercioUsuario');
-    const select = document.getElementById('selectComercioUsuario');
-    if (rol === 'Admin') {
-        box.classList.add('hidden'); select.removeAttribute('required');
-    } else {
-        box.classList.remove('hidden'); select.setAttribute('required', 'true');
-    }
-}
-
-// --- LOGIN ---
-document.getElementById('loginForm').addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const res = await fetch(`${API_URL}/auth/login`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: document.getElementById('email').value, password: document.getElementById('password').value })
-    });
-    const data = await res.json();
-
-    if (res.ok) {
-        tokenGlobal = data.token; rolGlobal = data.usuario.rol;
-        document.getElementById('loginScreen').classList.add('hidden');
-        document.getElementById('dashboardScreen').classList.remove('hidden');
-        document.getElementById('userBadge').textContent = `Rol: ${rolGlobal} | ${data.usuario.email}`;
-
-        if (rolGlobal === 'Admin') {
-            document.getElementById('adminPanels').classList.remove('hidden');
-            document.getElementById('tiendaPanelForm').classList.remove('hidden');
-            document.getElementById('productoPanelForm').classList.remove('hidden'); // NUEVO
-        } else if (rolGlobal === 'Dueño') {
-            document.getElementById('tiendaPanelForm').classList.remove('hidden');
-            document.getElementById('productoPanelForm').classList.remove('hidden'); // NUEVO
-        }
-        controlarVisibilidadComercioUsuario();
-        actualizarDatosGlobales();
-
-    } else {
-        document.getElementById('loginMessage').textContent = data.error;
-    }
-});
-
-document.getElementById('btnLogout').addEventListener('click', () => location.reload());
-
+// ==========================================================================
+// 2. UTILIDADES GENERALES
+// ==========================================================================
 function extraerArray(json) {
     if (Array.isArray(json)) return json;
     if (json && Array.isArray(json.data)) return json.data;
@@ -61,361 +19,776 @@ function extraerArray(json) {
     return [];
 }
 
+// ==========================================================================
+// 3. INICIO Y CIERRE DE SESIÓN
+// ==========================================================================
+document.getElementById('loginForm')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+
+    const email = document.getElementById('email').value;
+    const password = document.getElementById('password').value;
+    const msgElement = document.getElementById('loginMessage');
+
+    if (msgElement) msgElement.innerText = "Conectando al servidor...";
+
+    try {
+        const res = await fetch(`${API_URL}/auth/login`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email, password })
+        });
+
+        const data = await res.json();
+
+        if (res.ok) {
+            tokenGlobal = data.token;
+            usuarioGlobal = data.usuario;
+
+            document.getElementById('loginScreen')?.classList.add('hidden');
+            document.getElementById('dashboardScreen')?.classList.remove('hidden');
+
+            // Fallbacks por si es un usuario antiguo sin nombre/apellido/empresa
+            const nombre = data.usuario.nombre || 'Administrador';
+            const apellido = data.usuario.apellido || 'Maestro';
+            const empresa = data.usuario.comercioNombre || 'Sistema Dynamis';
+
+            const userBadge = document.getElementById('userBadge');
+            if (userBadge) {
+                userBadge.innerText = `Usuario: ${nombre} ${apellido}\nRol: ${data.usuario.rol}\nEmpresa: ${empresa}`;
+            }
+
+            // Gestión de Permisos UI
+            const rol = data.usuario.rol;
+            if (rol === 'Dueño') {
+                document.getElementById('cajaRolesRegistro')?.classList.add('hidden');
+                document.getElementById('productoPanelForm')?.classList.remove('hidden');
+            } else if (rol === 'Empleado') {
+                document.getElementById('adminPanels')?.classList.add('hidden');
+                document.getElementById('tiendaPanelForm')?.classList.add('hidden');
+                document.getElementById('productoPanelForm')?.classList.remove('hidden');
+            } else {
+                document.getElementById('adminPanels')?.classList.remove('hidden');
+                document.getElementById('cajaRolesRegistro')?.classList.remove('hidden');
+                document.getElementById('tiendaPanelForm')?.classList.remove('hidden');
+                document.getElementById('productoPanelForm')?.classList.remove('hidden');
+            }
+
+            // Iniciamos la carga de datos y mostramos la pantalla inicial
+            await actualizarDatosGlobales();
+            mostrarSeccion('secComercios');
+
+            if (msgElement) msgElement.innerText = "";
+        } else {
+            if (msgElement) msgElement.textContent = data.error || 'Credenciales incorrectas.';
+        }
+    } catch (error) {
+        console.error("Error en login:", error);
+        if (msgElement) msgElement.innerText = 'Error de red con el backend.';
+    }
+});
+
+// Botón de Logout directo y efectivo
+document.getElementById('btnLogout')?.addEventListener('click', () => {
+    tokenGlobal = '';
+    usuarioGlobal = null;
+    location.reload();
+});
+
+// ==========================================================================
+// 4. MOTOR DE NAVEGACIÓN (SPA)
+// ==========================================================================
+function mostrarSeccion(idSeccion) {
+    document.getElementById('secComercios')?.classList.add('hidden');
+    document.getElementById('secTiendas')?.classList.add('hidden');
+    document.getElementById('secStock')?.classList.add('hidden');
+    document.getElementById('secVentas')?.classList.add('hidden');
+
+    document.getElementById(idSeccion)?.classList.remove('hidden');
+}
+
+// ==========================================================================
+// 5. CARGA DE DATOS PRINCIPALES
+// ==========================================================================
 async function actualizarDatosGlobales() {
     try {
         const [resCom, resTien] = await Promise.all([
             fetch(`${API_URL}/comercios`, { headers: { 'Authorization': `Bearer ${tokenGlobal}` } }),
             fetch(`${API_URL}/tiendas`, { headers: { 'Authorization': `Bearer ${tokenGlobal}` } })
         ]);
-        const comercios = extraerArray(await resCom.json());
-        const tiendas = extraerArray(await resTien.json());
 
-        renderizarComerciosYListas(comercios, tiendas);
-        renderizarTiendasIndependientes(tiendas, comercios);
-        cargarVentas();
-    } catch (error) { console.error("Error:", error); }
+        // 🟢 Ahora los guardamos en las variables globales
+        comerciosGlobal = extraerArray(await resCom.json());
+        tiendasGlobal = extraerArray(await resTien.json());
+
+        if (typeof renderizarComerciosYListas === 'function') renderizarComerciosYListas(comerciosGlobal, tiendasGlobal);
+        if (typeof renderizarTiendasIndependientes === 'function') renderizarTiendasIndependientes(tiendasGlobal, comerciosGlobal);
+        if (typeof cargarVentas === 'function') cargarVentas();
+
+        // 🟢 Corregimos el nombre exacto de la función y le sumamos la capa de seguridad
+        if (typeof llenarSelectTiendasProducto === 'function') llenarSelectTiendasProducto();
+        if (typeof llenarSelectTiendasVenta === 'function') llenarSelectTiendasVenta();
+
+    } catch (error) {
+        console.error("Error cargando datos globales:", error);
+    }
 }
 
-// --- RENDERIZADO VISUAL ---
-function renderizarComerciosYListas(comercios, tiendas) {
-    const grid = document.getElementById('gridComercios');
-    const selectTiendaForm = document.getElementById('selectComercio');
-    const selectUserForm = document.getElementById('selectComercioUsuario');
+// ==========================================================================
+// 6. FORMULARIO: REGISTRO DE USUARIOS (ADMIN/DUEÑO)
+// ==========================================================================
+document.getElementById('formUsuario')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
 
-    grid.innerHTML = '';
-    selectTiendaForm.innerHTML = '<option value="" disabled selected>Seleccione un comercio...</option>';
-    selectUserForm.innerHTML = '<option value="" disabled selected>Seleccione un comercio...</option>';
+    const payload = {
+        nombre: document.getElementById('nombreUsuario')?.value.trim() || '',
+        apellido: document.getElementById('apellidoUsuario')?.value.trim() || '',
+        email: document.getElementById('emailUsuario').value.trim(),
+        password: document.getElementById('passwordUsuario').value,
+        rol: document.getElementById('rolUsuario').value,
+        comercioId: document.getElementById('selectComercioUsuario')?.value || null
+    };
 
-    comercios.forEach(com => {
-        const comIdStr = String(com._id);
-        const estadoClase = com.estado === 'Activo' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800';
-
-        const tiendasDelComercio = tiendas.filter(t => {
-            const tComId = t.comercioId._id ? String(t.comercioId._id) : String(t.comercioId);
-            return tComId === comIdStr;
+    try {
+        const res = await fetch(`${API_URL}/auth/registro`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${tokenGlobal}`
+            },
+            body: JSON.stringify(payload)
         });
 
-        let htmlTiendas = '';
-        if (tiendasDelComercio.length > 0) {
-            htmlTiendas = '<ul class="pl-4 border-l-2 border-gray-200 space-y-2 mt-2">';
-            tiendasDelComercio.forEach(t => {
-                const estadoT = t.estado === 'Activa' ? '' : '<span class="text-red-500 text-xs ml-2 font-bold">(Inactiva)</span>';
-                let botonesTienda = '';
-                if (rolGlobal === 'Admin' || rolGlobal === 'Dueño') {
-                    if (t.estado === 'Activa') {
-                        botonesTienda = `<button onclick="bajaTienda('${t._id}')" class="text-red-600 hover:text-red-800 text-xs font-bold px-2 py-0.5 bg-red-50 rounded border border-red-200">Baja Lógica</button>`;
-                    } else {
-                        botonesTienda = `<button onclick="reactivarTienda('${t._id}')" class="text-green-600 hover:text-green-800 text-xs font-bold px-2 py-0.5 bg-green-50 rounded border border-green-200">Reactivar</button>`;
-                    }
-                }
-
-                htmlTiendas += `<li class="text-sm text-gray-600 flex flex-col bg-gray-50 p-2 rounded border border-gray-100">
-                            <div class="flex items-center justify-between">
-                                <span><b>${t.nombre}</b> ${estadoT}</span>
-                                ${botonesTienda}
-                            </div>
-                            <span class="text-xs text-blue-500 font-mono mt-1 select-all" title="Copiar ID">ID Tienda: ${t._id}</span>
-                        </li>`;
-            });
-            htmlTiendas += '</ul>';
+        const data = await res.json();
+        if (res.ok) {
+            alert('✅ Usuario creado con éxito');
+            document.getElementById('formUsuario').reset();
         } else {
-            htmlTiendas = '<p class="text-sm text-gray-400 italic mt-2">No posee tiendas vinculadas.</p>';
+            alert('❌ Error: ' + (data.error || data.detalle));
         }
+    } catch (error) {
+        console.error("Error registro:", error);
+    }
+});
 
-        grid.innerHTML += `
-                    <div class="bg-white rounded-lg shadow-md border-t-4 ${com.estado === 'Activo' ? 'border-blue-600' : 'border-gray-400'} p-5 flex flex-col justify-between">
-                        <div>
-                            <div class="flex justify-between items-start mb-1">
-                                <h3 class="text-xl font-extrabold text-gray-800">${com.nombre}</h3>
-                                <span class="px-2 py-1 rounded text-xs font-bold ${estadoClase}">${com.estado}</span>
-                            </div>
-                            <p class="text-sm text-gray-500 mb-1 font-mono">CUIT: ${com.cuit}</p>
-                            <p class="text-xs text-blue-600 font-mono bg-blue-50 p-1 rounded inline-block select-all mb-4">ID: ${com._id}</p>
-                            
-                            <div class="border-t border-dashed border-gray-200 pt-3">
-                                <h4 class="text-sm font-bold text-gray-700">Tiendas asociadas (${tiendasDelComercio.length}):</h4>
-                                ${htmlTiendas}
-                            </div>
-                        </div>
-                        
-                        ${rolGlobal === 'Admin' ? `
-                        <div class="mt-5 pt-3 border-t border-gray-100 flex justify-end">
-                            ${com.estado === 'Activo' ?
-                    `<button onclick="bajaComercio('${com._id}')" class="bg-red-500 hover:bg-red-600 text-white px-3 py-1.5 rounded text-sm font-bold transition shadow-sm">Dar de Baja</button>` :
-                    `<button onclick="reactivarComercio('${com._id}')" class="bg-green-500 hover:bg-green-600 text-white px-3 py-1.5 rounded text-sm font-bold transition shadow-sm">Reactivar Comercio</button>`
-                }
-                        </div>` : ''}
-                    </div>
-                `;
+// ==========================================================================
+// 7. WEBSOCKETS (CHAT SOPORTE EN TIEMPO REAL)
+// ==========================================================================
+socket.on('connect', () => console.log('✅ Conectado al chat. Socket ID:', socket.id));
 
-        if (com.estado === 'Activo') {
-            selectTiendaForm.innerHTML += `<option value="${com._id}">${com.nombre}</option>`;
-            selectUserForm.innerHTML += `<option value="${com._id}">${com.nombre}</option>`;
-        }
-    });
+function toggleChat() {
+    document.getElementById('chatWindow')?.classList.toggle('hidden');
 }
 
-function renderizarTiendasIndependientes(tiendas, comercios) {
-    const grid = document.getElementById('gridTiendas');
-    grid.innerHTML = '';
-    // Llenamos el select de productos con las tiendas activas
-    const selectTiendaProd = document.getElementById('selectTiendaProducto');
-    selectTiendaProd.innerHTML = '<option value="" disabled selected>Seleccione una tienda...</option>';
-    tiendas.forEach(t => {
-        if (t.estado === 'Activa') selectTiendaProd.innerHTML += `<option value="${t._id}">${t.nombre} (${t.dominio})</option>`;
-    });
+function enviarMensajeChat(e) {
+    e.preventDefault();
+    const input = document.getElementById('chatInput');
+    const texto = input.value.trim();
 
-    tiendas.forEach(t => {
-        const idPadreABuscar = t.comercioId._id ? String(t.comercioId._id) : String(t.comercioId);
-        const padre = comercios.find(c => String(c._id) === idPadreABuscar);
-        const nombrePadre = padre ? padre.nombre : 'Comercio Eliminado o Desconocido';
-        const estadoClase = t.estado === 'Activa' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800';
+    if (texto !== "" && usuarioGlobal) {
+        let nombreAutor = '';
+        if (usuarioGlobal.rol === 'Admin') {
+            nombreAutor = '🛠️ Soporte Dynamis';
+        } else {
+            const nombre = usuarioGlobal.nombre || 'Usuario';
+            const empresa = usuarioGlobal.comercioNombre || 'Sistema';
+            nombreAutor = `👤 ${nombre} | ${usuarioGlobal.rol} - ${empresa}`;
+        }
 
-        let botonAccion = '';
-        if (rolGlobal === 'Admin' || rolGlobal === 'Dueño') {
-            if (t.estado === 'Activa') {
-                botonAccion = `<button onclick="bajaTienda('${t._id}')" class="text-red-500 hover:text-red-700 text-sm font-bold">Baja Lógica</button>`;
-            } else {
-                botonAccion = `<button onclick="reactivarTienda('${t._id}')" class="bg-green-100 text-green-700 px-3 py-1 rounded text-sm font-bold hover:bg-green-200">Reactivar</button>`;
+        socket.emit('mensaje_cliente', { id: socket.id, autor: nombreAutor, texto: texto });
+        input.value = '';
+    }
+}
+
+socket.on('mensaje_servidor', (data) => {
+    const chatMessages = document.getElementById('chatMessages');
+    if (!chatMessages) return;
+
+    const div = document.createElement('div');
+    div.className = data.id === socket.id ? 'chat-msg msg-propio' : 'chat-msg msg-ajeno';
+    div.innerHTML = `<span class="msg-autor">${data.autor}</span>${data.texto}`;
+
+    chatMessages.appendChild(div);
+    chatMessages.scrollTop = chatMessages.scrollHeight;
+});
+// ==========================================================================
+// 8. RENDERIZADO DE DATOS (PINTAR EL HTML)
+// ==========================================================================
+
+// Pinta la tabla de Comercios y llena TODOS los <select>
+function renderizarComerciosYListas(comercios, tiendas) {
+    const tablaComercios = document.getElementById('tablaComercios');
+
+    if (tablaComercios) {
+        tablaComercios.innerHTML = `
+            <thead>
+                <tr>
+                    <th>Empresa</th>
+                    <th>CUIT</th>
+                    <th>Estado</th>
+                    <th>Acciones</th>
+                </tr>
+            </thead>
+            <tbody>
+                ${comercios.map(c => {
+            // 🛡️ REGLA: Solo el Admin puede dar de baja comercios
+            let botones = '<span style="color: gray; font-size: 0.8rem;">Sin permisos</span>';
+
+            if (usuarioGlobal && usuarioGlobal.rol === 'Admin') {
+                botones = c.estado === 'Activo'
+                    ? `<button onclick="cambiarEstadoComercio('${c._id}', 'baja')" style="background-color: #dc3545; padding: 5px 10px; font-size: 0.8rem;">Desactivar</button>`
+                    : `<button onclick="cambiarEstadoComercio('${c._id}', 'reactivar')" style="background-color: #28a745; padding: 5px 10px; font-size: 0.8rem;">Reactivar</button>`;
             }
+
+            return `
+                    <tr>
+                        <td><strong>${c.nombre}</strong></td>
+                        <td>${c.cuit}</td>
+                        <td><span class="badge ${c.estado === 'Activo' ? 'badge-success' : 'badge-danger'}">${c.estado}</span></td>
+                        <td>${botones}</td>
+                    </tr>
+                    `;
+        }).join('')}
+            </tbody>
+        `;
+    }
+
+    // Llenamos todos los selects de Comercio de una sola vez
+    const htmlOpciones = '<option value="">Seleccione un comercio...</option>' +
+        comercios.map(c => `<option value="${c._id}">${c.nombre}</option>`).join('');
+
+    const selectUsuario = document.getElementById('selectComercioUsuario');
+    const selectTienda = document.getElementById('selectComercioTienda');
+    const filtroStock = document.getElementById('filtroComercioStock');
+
+    if (selectUsuario) selectUsuario.innerHTML = htmlOpciones;
+    if (selectTienda) selectTienda.innerHTML = htmlOpciones;
+    if (filtroStock) filtroStock.innerHTML = htmlOpciones;
+}
+
+// Pinta la tabla de Tiendas
+function renderizarTiendasIndependientes(tiendas, comercios) {
+    const tablaTiendas = document.getElementById('tablaTiendas');
+
+    if (tablaTiendas) {
+        tablaTiendas.innerHTML = `
+            <thead>
+                <tr>
+                    <th>Nombre Tienda</th>
+                    <th>Pertenece a</th>
+                    <th>Estado</th>
+                    <th>Acciones</th>
+                </tr>
+            </thead>
+            <tbody>
+                ${tiendas.map(t => {
+            const comercioPadre = comercios.find(c => c._id === t.comercioId);
+            const nombreComercio = comercioPadre ? comercioPadre.nombre : 'Desconocido';
+
+            // 🛡️ REGLA: Admin y Dueño pueden dar de baja tiendas, Empleado no.
+            let botones = '<span style="color: gray; font-size: 0.8rem;">Sin permisos</span>';
+
+            if (usuarioGlobal && (usuarioGlobal.rol === 'Admin' || usuarioGlobal.rol === 'Dueño')) {
+                botones = t.estado === 'Activa'
+                    ? `<button onclick="cambiarEstadoTienda('${t._id}', 'baja')" style="background-color: #dc3545; padding: 5px 10px; font-size: 0.8rem;">Desactivar</button>`
+                    : `<button onclick="cambiarEstadoTienda('${t._id}', 'reactivar')" style="background-color: #28a745; padding: 5px 10px; font-size: 0.8rem;">Reactivar</button>`;
+            }
+
+            return `
+                    <tr>
+                        <td><strong>${t.nombre}</strong></td>
+                        <td>${nombreComercio}</td>
+                        <td><span class="badge ${t.estado === 'Activa' ? 'badge-success' : 'badge-danger'}">${t.estado}</span></td>
+                        <td>${botones}</td>
+                    </tr>
+                    `;
+        }).join('')}
+            </tbody>
+        `;
+    }
+}
+
+// Trae las ventas desde la API y las pinta en su tabla
+async function cargarVentas() {
+    try {
+        const res = await fetch(`${API_URL}/ventas`, {
+            headers: { 'Authorization': `Bearer ${tokenGlobal}` }
+        });
+        const data = await res.json();
+        const ventas = extraerArray(data);
+
+        const tbody = document.getElementById('tablaVentas');
+        if (tbody) {
+            if (ventas.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;">No hay ventas registradas aún.</td></tr>`;
+                return;
+            }
+
+            tbody.innerHTML = ventas.map(v => {
+                const fecha = new Date(v.createdAt).toLocaleDateString('es-AR', { hour: '2-digit', minute: '2-digit' });
+                
+                // 🟢 CAMBIO 1: Buscamos v.usuarioId (tal cual está en tu Venta.js)
+                const vendedor = v.usuarioId ? v.usuarioId.email : 'N/A';
+                
+                // 🟢 CAMBIO 2: Aseguramos que productoId también esté bien (coincide con tu esquema)
+                const producto = v.productoId ? v.productoId.nombre : 'Producto Eliminado';
+
+                return `
+                <tr>
+                    <td>${fecha}</td>
+                    <td>${vendedor}</td>
+                    <td>${producto}</td>
+                    <td>${v.cantidad}</td>
+                    <td><strong>$${v.total.toLocaleString()}</strong></td>
+                </tr>
+                `;
+            }).join('');
+        }
+    } catch (error) {
+        console.error("Error cargando el historial de ventas:", error);
+    }
+}
+// Renderiza la tabla de Productos / Stock
+function renderizarProductos(productos) {
+    const tablaProductos = document.getElementById('tablaProductos');
+
+    if (tablaProductos) {
+        if (productos.length === 0) {
+            tablaProductos.innerHTML = `<tr><td colspan="4" style="text-align:center;">No hay productos registrados.</td></tr>`;
+            return;
         }
 
-        grid.innerHTML += `
-                    <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-5 relative flex flex-col justify-between">
-                        <div>
-                            <div class="flex justify-between items-start mb-2">
-                                <div>
-                                    <h3 class="text-xl font-bold text-gray-800">${t.nombre}</h3>
-                                    <span class="text-blue-500 text-sm font-mono">${t.dominio}</span>
-                                </div>
-                                <span class="px-2 py-1 rounded text-xs font-bold ${estadoClase}">${t.estado}</span>
-                            </div>
-                            <div class="mt-4 bg-blue-50 p-3 rounded border border-blue-100 text-center">
-                                <p class="text-xs text-blue-600 uppercase font-bold tracking-wider mb-1">Pertenece al Comercio:</p>
-                                <p class="text-lg font-extrabold text-blue-900">${nombrePadre}</p>
-                            </div>
-                        </div>
-                        <div class="mt-4 flex justify-between items-center border-t border-gray-100 pt-3">
-                            <span class="text-xs text-gray-500 font-mono select-all bg-gray-100 px-2 py-1 rounded">ID: ${t._id}</span>
-                            ${botonAccion}
-                        </div>
-                    </div>
-                `;
-    });
+        tablaProductos.innerHTML = `
+            <thead>
+                <tr>
+                    <th>Producto</th>
+                    <th>Stock Disponible</th>
+                    <th>Precio Unidad</th>
+                    <th>ID Sistema (Para Vender)</th>
+                </tr>
+            </thead>
+            <tbody>
+                ${productos.map(p => `
+                    <tr>
+                        <td><strong>${p.nombre}</strong></td>
+                        <td>
+                            <span class="badge ${p.stock > 10 ? 'badge-success' : 'badge-danger'}">
+                                ${p.stock} unid.
+                            </span>
+                        </td>
+                        <td>$${p.precio}</td>
+                        <td style="font-size: 0.8rem; color: gray;">${p._id}</td>
+                    </tr>
+                `).join('')}
+            </tbody>
+        `;
+    }
+}
+// ==========================================================================
+// 9. GESTIÓN DE ESTADOS (BAJA LÓGICA Y REACTIVACIÓN)
+// ==========================================================================
+
+async function cambiarEstadoComercio(id, accion) {
+    // Si la acción es 'baja', usamos DELETE. Si es 'reactivar', usamos PUT en tu ruta /activar
+    const metodo = accion === 'baja' ? 'DELETE' : 'PUT';
+    const url = accion === 'baja' ? `${API_URL}/comercios/${id}` : `${API_URL}/comercios/${id}/activar`;
+
+    const confirmacion = confirm(`¿Estás seguro de que querés ${accion === 'baja' ? 'dar de baja' : 'reactivar'} este comercio?`);
+    if (!confirmacion) return;
+
+    try {
+        const res = await fetch(url, {
+            method: metodo,
+            headers: { 'Authorization': `Bearer ${tokenGlobal}` }
+        });
+
+        if (res.ok) {
+            // Si salió bien, volvemos a llamar a la función global para que la tabla se redibuje sola
+            await actualizarDatosGlobales();
+        } else {
+            const data = await res.json();
+            alert(`Error: ${data.error || 'No se pudo completar la operación'}`);
+        }
+    } catch (error) {
+        console.error("Error cambiando el estado del comercio:", error);
+    }
 }
 
-// --- FORMULARIOS (CREACIÓN DE DATOS) ---
-document.getElementById('formComercio').addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const res = await fetch(`${API_URL}/comercios`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${tokenGlobal}` },
-        body: JSON.stringify({ nombre: document.getElementById('nombreComercio').value, cuit: document.getElementById('cuitComercio').value })
-    });
-    if (res.ok) { document.getElementById('formComercio').reset(); actualizarDatosGlobales(); }
-});
+async function cambiarEstadoTienda(id, accion) {
+    const metodo = accion === 'baja' ? 'DELETE' : 'PUT';
+    const url = accion === 'baja' ? `${API_URL}/tiendas/${id}` : `${API_URL}/tiendas/${id}/activar`;
 
-document.getElementById('formTienda').addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const res = await fetch(`${API_URL}/tiendas`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${tokenGlobal}` },
-        body: JSON.stringify({ nombre: document.getElementById('nombreTienda').value, dominio: document.getElementById('dominioTienda').value, comercioId: document.getElementById('selectComercio').value })
-    });
-    if (res.ok) { document.getElementById('formTienda').reset(); actualizarDatosGlobales(); }
-});
+    const confirmacion = confirm(`¿Estás seguro de que querés ${accion === 'baja' ? 'dar de baja' : 'reactivar'} esta tienda?`);
+    if (!confirmacion) return;
 
-document.getElementById('formUsuario').addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const rol = document.getElementById('rolUsuario').value;
+    try {
+        const res = await fetch(url, {
+            method: metodo,
+            headers: { 'Authorization': `Bearer ${tokenGlobal}` }
+        });
+
+        if (res.ok) {
+            await actualizarDatosGlobales();
+        } else {
+            const data = await res.json();
+            alert(`Error: ${data.error || 'No se pudo completar la operación'}`);
+        }
+    } catch (error) {
+        console.error("Error cambiando el estado de la tienda:", error);
+    }
+}
+// ==========================================================================
+// 10. FORMULARIOS DE ALTA: COMERCIOS Y TIENDAS
+// ==========================================================================
+
+// Crear Nuevo Comercio
+document.getElementById('formComercio')?.addEventListener('submit', async (e) => {
+    e.preventDefault(); // 🟢 Evita que se recargue la página y te desloguee
+
     const payload = {
-        email: document.getElementById('emailUsuario').value,
-        password: document.getElementById('passwordUsuario').value,
-        rol: rol
+        nombre: document.getElementById('nombreComercio').value.trim(),
+        cuit: document.getElementById('cuitComercio').value.trim()
     };
-    if (rol !== 'Admin') payload.comercioId = document.getElementById('selectComercioUsuario').value;
 
-    const res = await fetch(`${API_URL}/auth/registro`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${tokenGlobal}` },
-        body: JSON.stringify(payload)
-    });
+    try {
+        const res = await fetch(`${API_URL}/comercios`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${tokenGlobal}`
+            },
+            body: JSON.stringify(payload)
+        });
 
-    if (res.ok) {
-        alert(`Usuario registrado con éxito.`);
-        document.getElementById('formUsuario').reset();
-        controlarVisibilidadComercioUsuario();
-    } else {
-        const err = await res.json();
-        alert(`Error del Servidor: ${err.error} \nDetalle: ${err.detalle || 'Ninguno'}`);
+        if (res.ok) {
+            alert('✅ Comercio registrado con éxito');
+            document.getElementById('formComercio').reset();
+            await actualizarDatosGlobales(); // Redibuja la tabla al instante
+        } else {
+            const data = await res.json();
+            alert(`❌ Error: ${data.error || 'No se pudo crear el comercio'}`);
+        }
+    } catch (error) {
+        console.error("Error al crear comercio:", error);
     }
 });
 
-// --- FUNCIONES DE BAJA Y REACTIVACIÓN (CON MANEJO DE ERRORES) ---
-async function reactivarComercio(id) {
-    if (!confirm('¿Reactivar este Comercio corporativo?')) return;
-    try {
-        const res = await fetch(`${API_URL}/comercios/${id}/activar`, { method: 'PUT', headers: { 'Authorization': `Bearer ${tokenGlobal}` } });
-        if (res.ok) actualizarDatosGlobales();
-        else { const data = await res.json(); alert(`El Backend rechazó la acción: ${data.error}`); }
-    } catch (err) { alert('Error de conexión con el servidor.'); }
-}
-
-async function bajaComercio(id) {
-    if (!confirm('¿Confirmás la baja lógica?')) return;
-    try {
-        const res = await fetch(`${API_URL}/comercios/${id}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${tokenGlobal}` } });
-        if (res.ok) actualizarDatosGlobales();
-        else { const data = await res.json(); alert(`El Backend rechazó la acción: ${data.error}`); }
-    } catch (err) { alert('Error de conexión con el servidor.'); }
-}
-
-async function reactivarTienda(id) {
-    if (!confirm('¿Reactivar esta Sucursal?')) return;
-    try {
-        const res = await fetch(`${API_URL}/tiendas/${id}/activar`, { method: 'PUT', headers: { 'Authorization': `Bearer ${tokenGlobal}` } });
-        if (res.ok) actualizarDatosGlobales();
-        else { const data = await res.json(); alert(`El Backend rechazó la acción: ${data.error}`); }
-    } catch (err) { alert('Error de conexión con el servidor.'); }
-}
-
-async function bajaTienda(id) {
-    if (!confirm('¿Confirmás la baja lógica?')) return;
-    try {
-        const res = await fetch(`${API_URL}/tiendas/${id}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${tokenGlobal}` } });
-        if (res.ok) actualizarDatosGlobales();
-        else { const data = await res.json(); alert(`El Backend rechazó la acción: ${data.error}`); }
-    } catch (err) { alert('Error de conexión con el servidor.'); }
-}
-
-// --- FORMULARIO DE PRODUCTOS ---
-document.getElementById('formProducto').addEventListener('submit', async (e) => {
+// Crear Nueva Tienda
+document.getElementById('formTienda')?.addEventListener('submit', async (e) => {
     e.preventDefault();
+
+    // 🟢 Agregamos el dominio al payload para que Mongo no nos rebote
     const payload = {
-        nombre: document.getElementById('nombreProducto').value,
-        precio: Number(document.getElementById('precioProducto').value),
-        stock: Number(document.getElementById('stockProducto').value),
-        tiendaId: document.getElementById('selectTiendaProducto').value
+        nombre: document.getElementById('nombreTienda').value.trim(),
+        dominio: document.getElementById('dominioTienda').value.trim(),
+        comercioId: document.getElementById('selectComercioTienda').value
     };
 
-    const res = await fetch(`${API_URL}/productos`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${tokenGlobal}` },
-        body: JSON.stringify(payload)
-    });
+    try {
+        const res = await fetch(`${API_URL}/tiendas`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${tokenGlobal}`
+            },
+            body: JSON.stringify(payload)
+        });
 
-    if (res.ok) {
-        alert('¡Producto guardado/actualizado en el inventario con éxito!');
-        document.getElementById('formProducto').reset();
-
-        // Truco mágico: pegamos el ID de la tienda en el buscador y lo accionamos solos
-        document.getElementById('inputTiendaId').value = payload.tiendaId;
-        cargarStock();
-    } else {
-        const err = await res.json();
-        alert(`Error al crear producto: ${err.error}`);
+        if (res.ok) {
+            alert('✅ Tienda registrada con éxito');
+            document.getElementById('formTienda').reset();
+            await actualizarDatosGlobales();
+        } else {
+            const data = await res.json();
+            // Esto ahora te va a mostrar exactamente qué falló si falta otro dato
+            alert(`❌ Error: ${data.error || data.detalle || 'No se pudo crear la tienda'}`);
+        }
+    } catch (error) {
+        console.error("Error al crear tienda:", error);
     }
 });
+// ==========================================================================
+// 11. VISOR DE STOCK DINÁMICO (FILTROS EN CASCADA)
+// ==========================================================================
 
-// --- CARGA DE STOCK SEGURA ---
-async function cargarStock() {
-    // .trim() borra espacios en blanco accidentales al copiar y pegar el ID
-    const id = document.getElementById('inputTiendaId').value.trim();
-    if (!id) return alert('Por favor, ingresá o copiá un ID de Tienda válido.');
+// Se ejecuta al cambiar el <select> de Comercio en la pestaña Stock
+function actualizarFiltroTiendas() {
+    const comercioId = document.getElementById('filtroComercioStock').value;
+    const selectTienda = document.getElementById('filtroTiendaStock');
+
+    if (!comercioId) {
+        selectTienda.innerHTML = '<option value="">Primero seleccione un comercio...</option>';
+        return;
+    }
+
+    // Filtramos usando la memoria global, sin hacerle peticiones innecesarias al Backend
+    const tiendasFiltradas = tiendasGlobal.filter(t => t.comercioId === comercioId && t.estado === 'Activa');
+
+    selectTienda.innerHTML = '<option value="">Seleccione una tienda...</option>' +
+        tiendasFiltradas.map(t => `<option value="${t._id}">${t.nombre}</option>`).join('');
+}
+
+// Se ejecuta al elegir una Tienda y presionar buscar
+async function buscarProductosPorTienda() {
+    const tiendaId = document.getElementById('filtroTiendaStock').value;
+    const tablaProductos = document.getElementById('tablaProductos');
+
+    if (!tiendaId) {
+        tablaProductos.innerHTML = '<tr><td colspan="5" style="text-align:center;">Seleccione una tienda para ver su stock.</td></tr>';
+        return;
+    }
 
     try {
-        // Inyectamos el Token por si la ruta está protegida
-        const res = await fetch(`${API_URL}/productos/tienda/${id}`, {
+        tablaProductos.innerHTML = '<tr><td colspan="5" style="text-align:center;">Cargando catálogo...</td></tr>';
+
+        // Disparamos directo a la ruta que armamos en productoRoutes.js
+        const res = await fetch(`${API_URL}/productos/tienda/${tiendaId}`, {
             headers: { 'Authorization': `Bearer ${tokenGlobal}` }
         });
 
         const data = await res.json();
 
-        if (!res.ok) {
-            alert(`El backend rechazó la búsqueda: ${data.error || 'Error desconocido'}`);
-            return;
-        }
-
-        const jsonStock = extraerArray(data);
-        const grid = document.getElementById('gridStock');
-        grid.innerHTML = '';
-
-        if (jsonStock && jsonStock.length > 0) {
-            jsonStock.forEach(p => {
-                grid.innerHTML += `
-                        <div class="bg-white border border-gray-200 p-4 rounded-lg flex justify-between items-center shadow-sm hover:shadow transition">
-                            <div>
-                                <p class="font-extrabold text-gray-800 text-lg">${p.nombre}</p>
-                                <p class="text-sm text-emerald-600 font-bold mb-1">$${p.precio.toLocaleString()}</p>
-                                <p class="text-xs text-gray-400 font-mono bg-gray-50 inline p-1 rounded select-all" title="Doble clic para copiar">ID: ${p._id}</p>
-                            </div>
-                            <div class="bg-amber-100 text-amber-800 px-4 py-2 rounded-lg font-black text-2xl shadow-inner border border-amber-200">
-                                ${p.stock} <span class="text-xs font-bold block text-center uppercase tracking-widest mt-0.5">Uds</span>
-                            </div>
-                        </div>`;
-            });
+        if (res.ok) {
+            const productos = extraerArray(data);
+            renderizarProductos(productos, tiendaId);
         } else {
-            grid.innerHTML = '<div class="col-span-2 bg-red-50 border border-red-200 p-4 rounded"><p class="text-red-600 font-bold text-center">No se encontraron productos en esta sucursal.</p></div>';
+            tablaProductos.innerHTML = `<tr><td colspan="5" style="text-align:center; color:red;">Error: ${data.error}</td></tr>`;
         }
-    } catch (err) {
-        alert('Error crítico de conexión al consultar el stock.');
+    } catch (error) {
+        console.error("Error buscando productos:", error);
+        tablaProductos.innerHTML = `<tr><td colspan="5" style="text-align:center; color:red;">Error de conexión.</td></tr>`;
     }
 }
 
-// --- FORMULARIO DE VENTAS (PUNTO DE VENTA) ---
-        document.getElementById('formVenta').addEventListener('submit', async (e) => {
-            e.preventDefault();
-                        const payload = {
-                productoId: document.getElementById('productoIdVenta').value.trim(),
-                cantidad: Number(document.getElementById('cantidadVenta').value)
-            };
+// Dibuja la tabla de Stock con las columnas de IDs (Ideal para probar las Ventas)
+function renderizarProductos(productos, tiendaId) {
+    const tablaProductos = document.getElementById('tablaProductos');
 
-            try {
-                const res = await fetch(`${API_URL}/ventas`, {
-                    method: 'POST', 
-                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${tokenGlobal}` },
-                    body: JSON.stringify(payload)
-                });
+    if (!tablaProductos) return;
 
-                if (res.ok) { 
-                    alert('¡Venta registrada con éxito! El stock se ha descontado.');
-                    document.getElementById('formVenta').reset(); 
-                    cargarVentas(); 
-                } else { 
-                    const err = await res.json();
-                    alert(`Error al procesar la venta: ${err.error}`); 
-                }
-            } catch (err) {
-                alert('Error crítico de conexión al intentar registrar la venta.');
-            }
-        });
-        async function cargarVentas() {
-            const res = await fetch(`${API_URL}/ventas`, { headers: { 'Authorization': `Bearer ${tokenGlobal}` } });
-            const data = await res.json();
-            const jsonVentas = extraerArray(data);
-            const tbody = document.getElementById('tablaVentas');
-            tbody.innerHTML = '';
+    if (productos.length === 0) {
+        tablaProductos.innerHTML = `<tr><td colspan="5" style="text-align:center;">Esta tienda no tiene productos registrados.</td></tr>`;
+        return;
+    }
 
-            if(jsonVentas && jsonVentas.length > 0) {
-                jsonVentas.forEach(v => {
-                    const prodNombre = v.productoId ? v.productoId.nombre : 'Producto Removido';
-                    const vendedorEmail = v.usuarioId ? v.usuarioId.email : 'Sistema';
-                    const vendedorRol = v.usuarioId ? v.usuarioId.rol : '';
+    tablaProductos.innerHTML = `
+        <thead>
+            <tr>
+                <th>Producto</th>
+                <th>Stock</th>
+                <th>Precio</th>
+                <th>📋 ID del Producto</th>
+                <th>🏠 ID de la Tienda</th>
+            </tr>
+        </thead>
+        <tbody>
+            ${productos.map(p => `
+                <tr>
+                    <td><strong>${p.nombre}</strong></td>
+                    <td><span class="badge ${p.stock > 10 ? 'badge-success' : 'badge-danger'}">${p.stock}</span></td>
+                    <td>$${p.precio}</td>
+                    <td style="font-family: monospace; font-size: 0.85rem; color: #a1a1aa;">${p._id}</td>
+                    <td style="font-family: monospace; font-size: 0.85rem; color: #a1a1aa;">${p.tiendaId || tiendaId}</td>
+                </tr>
+            `).join('')}
+        </tbody>
+    `;
+}
+// ==========================================================================
+// 12. DESPLEGABLE INTELIGENTE DE TIENDAS PARA PRODUCTOS
+// ==========================================================================
 
-                    tbody.innerHTML += `
-                        <tr class="hover:bg-gray-50 border-b border-gray-100">
-                            <td class="p-3 text-sm text-gray-500">${new Date(v.createdAt).toLocaleDateString()}</td>
-                            
-                            <td class="p-3">
-                                <span class="font-bold text-gray-700">${vendedorEmail}</span><br>
-                                <span class="text-xs text-blue-500">${vendedorRol}</span>
-                            </td>
+function llenarSelectTiendasProducto() {
+    const select = document.getElementById('selectTiendaProducto');
+    if (!select || tiendasGlobal.length === 0) return;
 
-                            <td class="p-3"><span class="font-semibold text-gray-800">${prodNombre}</span></td>
-                            <td class="p-3 text-center font-bold text-gray-700">${v.cantidad}</td>
-                            <td class="p-3 text-right font-bold text-emerald-600">$${v.total.toLocaleString()}</td>
-                        </tr>
-                    `;
-                });
-            } else {
-                tbody.innerHTML = '<tr><td colspan="5" class="p-4 text-center text-gray-400 italic">No hay registros de transacciones comerciales.</td></tr>';
-            }
+    try {
+        // 🟢 Truco Pro: Desencriptamos el Payload del Token en el FrontEnd
+        const tokenData = JSON.parse(atob(tokenGlobal.split('.')[1]));
+        const miComercioId = tokenData.comercioId;
+        const miRol = tokenData.rol;
+
+        let tiendasFiltradas = [];
+
+        if (miRol === 'Admin') {
+            // El Admin ve absolutamente todas las tiendas activas
+            tiendasFiltradas = tiendasGlobal.filter(t => t.estado === 'Activa');
+        } else {
+            // Dueños y Empleados ven SOLAMENTE las tiendas conectadas a su Comercio
+            tiendasFiltradas = tiendasGlobal.filter(t => t.comercioId === miComercioId && t.estado === 'Activa');
         }
+
+        // Armamos el HTML de las opciones
+        select.innerHTML = '<option value="">Seleccione una tienda...</option>' +
+            tiendasFiltradas.map(t => {
+                // Si es Admin, le agregamos el nombre del comercio entre paréntesis para que no se maree
+                if (miRol === 'Admin') {
+                    const comercioPadre = comerciosGlobal.find(c => c._id === t.comercioId);
+                    const nombreCom = comercioPadre ? comercioPadre.nombre : 'Desconocido';
+                    return `<option value="${t._id}">${t.nombre} (${nombreCom})</option>`;
+                }
+                // Si es Dueño/Empleado, solo ve el nombre limpio de su sucursal
+                return `<option value="${t._id}">${t.nombre}</option>`;
+            }).join('');
+
+    } catch (error) {
+        console.error("Error al procesar el token para el select:", error);
+    }
+}
+// ==========================================================================
+// 13. FORMULARIO DE ALTA: NUEVO PRODUCTO
+// ==========================================================================
+
+document.getElementById('formProducto')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+
+    // 🟢 Ahora capturamos el tiendaId desde el desplegable en lugar de un input de texto
+    const payload = {
+        nombre: document.getElementById('nombreProducto').value.trim(),
+        stock: parseInt(document.getElementById('stockProducto').value, 10),
+        precio: parseFloat(document.getElementById('precioProducto').value),
+        tiendaId: document.getElementById('selectTiendaProducto').value
+    };
+
+    try {
+        const res = await fetch(`${API_URL}/productos`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${tokenGlobal}`
+            },
+            body: JSON.stringify(payload)
+        });
+
+        const data = await res.json();
+
+        if (res.ok) {
+            alert('✅ Producto registrado con éxito en el inventario.');
+            document.getElementById('formProducto').reset();
+
+            // Si hay una tienda seleccionada en el visor de arriba, actualizamos esa tabla
+            if (document.getElementById('filtroTiendaStock').value === payload.tiendaId) {
+                buscarProductosPorTienda();
+            }
+        } else {
+            alert(`❌ Error: ${data.error || 'No se pudo registrar el producto'}`);
+        }
+    } catch (error) {
+        console.error("Error al registrar producto:", error);
+        alert('Error de red al intentar comunicarse con el servidor.');
+    }
+});
+// ==========================================================================
+// 14. FLUJO DE VENTAS DINÁMICO (FILTROS POR ROL Y CASCADA)
+// ==========================================================================
+
+// Llena el desplegable de tiendas en la sección Ventas según quién esté navegando
+function llenarSelectTiendasVenta() {
+    const select = document.getElementById('selectTiendaVenta');
+    if (!select || tiendasGlobal.length === 0) return;
+
+    try {
+        const tokenData = JSON.parse(atob(tokenGlobal.split('.')[1]));
+        const miComercioId = tokenData.comercioId;
+        const miRol = tokenData.rol;
+
+        let tiendasFiltradas = [];
+
+        if (miRol === 'Admin') {
+            tiendasFiltradas = tiendasGlobal.filter(t => t.estado === 'Activa');
+        } else {
+            tiendasFiltradas = tiendasGlobal.filter(t => t.comercioId === miComercioId && t.estado === 'Activa');
+        }
+
+        select.innerHTML = '<option value="">Seleccione una tienda...</option>' + 
+            tiendasFiltradas.map(t => {
+                if (miRol === 'Admin') {
+                    const com = comerciosGlobal.find(c => c._id === t.comercioId);
+                    return `<option value="${t._id}">${t.nombre} (${com ? com.nombre : 'Desconocido'})</option>`;
+                }
+                return `<option value="${t._id}">${t.nombre}</option>`;
+            }).join('');
+            
+    } catch (error) {
+        console.error("Error al procesar permisos de tiendas para ventas:", error);
+    }
+}
+
+// Se ejecuta automáticamente al cambiar la tienda en el formulario de ventas
+async function actualizarProductosVenta() {
+    const tiendaId = document.getElementById('selectTiendaVenta').value;
+    const selectProducto = document.getElementById('selectProductoVenta');
+
+    if (!tiendaId) {
+        selectProducto.innerHTML = '<option value="">Primero seleccione una tienda...</option>';
+        return;
+    }
+
+    try {
+        selectProducto.innerHTML = '<option value="">Cargando catálogo de productos...</option>';
+
+        // Consultamos al catálogo exclusivo de esa tienda en Mongo
+        const res = await fetch(`${API_URL}/productos/tienda/${tiendaId}`, {
+            headers: { 'Authorization': `Bearer ${tokenGlobal}` }
+        });
+        const data = await res.json();
+        const productos = extraerArray(data);
+
+        if (productos.length === 0) {
+            selectProducto.innerHTML = '<option value="">No hay productos en esta tienda</option>';
+            return;
+        }
+
+        // Llenamos el select mostrando el nombre, el precio y el stock disponible
+        selectProducto.innerHTML = '<option value="">Seleccione un producto...</option>' + 
+            productos.map(p => `<option value="${p._id}">${p.nombre} ($${p.precio}) [Disponibles: ${p.stock}]</option>`).join('');
+
+    } catch (error) {
+        console.error("Error cargando productos para el formulario de ventas:", error);
+        selectProducto.innerHTML = '<option value="">Error al cargar catálogo</option>';
+    }
+}
+
+// Procesador del formulario de ventas actualizado
+document.getElementById('formVenta')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+
+    // 🟢 Capturamos el ID directamente del valor seleccionado en el desplegable
+    const payload = {
+        productoId: document.getElementById('selectProductoVenta').value,
+        cantidad: parseInt(document.getElementById('cantidadVenta').value, 10)
+    };
+
+    if (!payload.productoId) {
+        alert('Por favor, seleccione un producto válido.');
+        return;
+    }
+
+    try {
+        const res = await fetch(`${API_URL}/ventas`, {
+            method: 'POST',
+            headers: { 
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${tokenGlobal}` 
+            },
+            body: JSON.stringify(payload)
+        });
+
+        const data = await res.json();
+
+        if (res.ok) {
+            alert('✅ Venta procesada correctamente. Stock actualizado.');
+            document.getElementById('formVenta').reset();
+            
+            // Limpiamos el select secundario hasta que vuelvan a elegir tienda
+            document.getElementById('selectProductoVenta').innerHTML = '<option value="">Primero seleccione una tienda...</option>';
+            
+            // Refrescamos la tabla histórica de ventas y los datos del visor
+            await cargarVentas();
+            if (typeof buscarProductosPorTienda === 'function') buscarProductosPorTienda();
+        } else {
+            alert(`❌ Error al vender: ${data.error || 'Verifique el stock disponible'}`);
+        }
+    } catch (error) {
+        console.error("Error en flujo de transacciones:", error);
+    }
+});

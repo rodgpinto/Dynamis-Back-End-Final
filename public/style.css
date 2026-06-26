@@ -103,7 +103,7 @@ body {
     background-color: var(--bg-panel);
     padding: 2.5rem;
     border-radius: 12px;
-    box-shadow: 0 20px 25px  -8px var(--primary), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+    box-shadow: 0 20px 25px -8px var(--primary), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
     width: 100%;
     max-width: 400px;
     border-top: 4px solid var(--primary);
@@ -634,4 +634,136 @@ tr:hover td {
 .text-emerald-600 {
     color: var(--success);
     font-weight: 700;
+}
+
+/* ==========================================================================
+   8. COMPONENTE: CHAT FLOTANTE DE SOPORTE (WEBSOCKETS)
+   ========================================================================== */
+#btnChatToggle {
+    position: fixed;
+    bottom: 2rem;
+    right: 2rem;
+    background-color: var(--primary);
+    color: var(--text-light);
+    border: none;
+    padding: 1rem 1.5rem;
+    border-radius: 50px;
+    font-weight: 700;
+    font-size: 1rem;
+    cursor: pointer;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+    z-index: 1000;
+    transition: transform 0.2s, background-color 0.2s;
+}
+
+#btnChatToggle:hover {
+    transform: scale(1.05);
+    background-color: var(--primary-hover);
+}
+
+#chatWindow {
+    position: fixed;
+    bottom: 5.5rem;
+    right: 2rem;
+    width: 320px;
+    background-color: var(--bg-panel);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    z-index: 1000;
+}
+
+#chatHeader {
+    background-color: var(--bg-sidebar);
+    color: var(--text-light);
+    padding: 1rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+#chatHeader h4 {
+    margin: 0;
+    font-size: 1rem;
+}
+
+#chatHeader button {
+    background: transparent;
+    border: none;
+    color: var(--text-muted);
+    font-size: 1.2rem;
+    cursor: pointer;
+}
+
+#chatHeader button:hover {
+    color: var(--danger);
+}
+
+#chatMessages {
+    height: 300px;
+    padding: 1rem;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    background-color: var(--bg-global);
+}
+
+/* Burbujas de Chat */
+.chat-msg {
+    max-width: 85%;
+    padding: 0.65rem 0.85rem;
+    border-radius: 10px;
+    font-size: 0.9rem;
+    line-height: 1.3;
+    word-wrap: break-word;
+}
+
+.msg-propio {
+    background-color: var(--primary);
+    color: var(--text-light);
+    align-self: flex-end;
+    border-bottom-right-radius: 2px;
+}
+
+.msg-ajeno {
+    background-color: var(--bg-panel);
+    color: var(--text-primary);
+    border: 1px solid var(--border-color);
+    align-self: flex-start;
+    border-bottom-left-radius: 2px;
+}
+
+.msg-autor {
+    display: block;
+    font-size: 0.7rem;
+    font-weight: 700;
+    margin-bottom: 0.25rem;
+    opacity: 0.7;
+}
+
+/* Formulario interno del chat */
+#chatForm {
+    display: flex;
+    flex-direction: row;
+    /* Pasa por encima del column de los formularios globales */
+    padding: 0.75rem;
+    background-color: var(--bg-panel);
+    border-top: 1px solid var(--border-color);
+    gap: 0.5rem;
+    margin-bottom: 0;
+}
+
+#chatForm input {
+    margin: 0;
+    flex: 1;
+    border-radius: 6px;
+}
+
+#chatForm button {
+    margin: 0;
+    padding: 0.65rem 1rem;
 }
