@@ -1,6 +1,7 @@
 const Venta = require('../models/Venta');
 const Producto = require('../models/Producto');
 const Tienda = require('../models/Tienda');
+const Usuario = require('../models/Usuario');
 
 // POST /api/ventas
 const registrarVenta = async (req, res) => {
@@ -26,11 +27,11 @@ const registrarVenta = async (req, res) => {
 
         const totalVenta = producto.precio * cantidad;
         producto.stock -= cantidad;
-        await producto.save(); 
+        await producto.save();
 
         const nuevaVenta = new Venta({
             productoId: producto._id,
-            usuarioId: req.usuario.id, 
+            usuarioId: req.usuario.id,
             cantidad: cantidad,
             precioUnitario: producto.precio,
             total: totalVenta
@@ -49,20 +50,22 @@ const obtenerVentas = async (req, res) => {
     try {
         let filtro = {};
 
-        if (req.usuario.rol === 'Empleado') {
-            filtro.usuarioId = req.usuario.id;
+        if (req.usuario.rol !== 'Admin') {
+            const usuariosDelComercio = await Usuario.find({ comercioId: req.usuario.comercioId }).select('_id');
+            const idsUsuarios = usuariosDelComercio.map(u => u._id);
+
+            filtro = { usuarioId: { $in: idsUsuarios } };
         }
 
         const ventas = await Venta.find(filtro)
-            .populate('usuarioId', 'email nombre') 
+            .populate('usuarioId', 'email nombre rol')
             .populate('productoId', 'nombre')
-            .sort({ createdAt: -1 });
+            .sort({ createdAt: -1 }); 
 
         res.status(200).json(ventas);
-        
     } catch (error) {
-        console.error("ERROR EN OBTENER VENTAS:", error);
-        res.status(500).json({ error: 'Error al obtener el historial de ventas', detalle: error.message });
+        console.error("Error al obtener ventas:", error);
+        res.status(500).json({ error: 'Hubo un error al obtener el historial de ventas.' });
     }
 };
 
