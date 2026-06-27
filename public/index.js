@@ -44,7 +44,6 @@ document.getElementById('loginForm')?.addEventListener('submit', async (e) => {
             tokenGlobal = data.token;
             usuarioGlobal = data.usuario;
 
-            // 🟢 ACÁ ESTÁ EL EMIT: Le avisamos al socket quién se conectó y qué rol tiene
             socket.emit('unirseAConversacion', {
                 usuarioId: usuarioGlobal.id,
                 rol: usuarioGlobal.rol
@@ -278,7 +277,7 @@ async function cargarVentas() {
         });
         const data = await res.json();
         const ventas = extraerArray(data);
-
+        renderizarGraficos(ventas);
         const tbody = document.getElementById('tablaVentas');
         if (tbody) {
             if (ventas.length === 0) {
@@ -308,12 +307,13 @@ async function cargarVentas() {
         console.error("Error cargando el historial de ventas:", error);
     }
 }
+
 function renderizarProductos(productos) {
     const tablaProductos = document.getElementById('tablaProductos');
 
     if (tablaProductos) {
         if (productos.length === 0) {
-            tablaProductos.innerHTML = `<tr><td colspan="4" style="text-align:center;">No hay productos registrados.</td></tr>`;
+            tablaProductos.innerHTML = `<tr><td colspan="5" style="text-align:center;">No hay productos registrados.</td></tr>`;
             return;
         }
 
@@ -323,7 +323,7 @@ function renderizarProductos(productos) {
                     <th>Producto</th>
                     <th>Stock Disponible</th>
                     <th>Precio Unidad</th>
-                    <th>ID Sistema (Para Vender)</th>
+                    <th>Acción</th>
                 </tr>
             </thead>
             <tbody>
@@ -336,7 +336,11 @@ function renderizarProductos(productos) {
                             </span>
                         </td>
                         <td>$${p.precio}</td>
-                        <td style="font-size: 0.8rem; color: gray;">${p._id}</td>
+                        <td>
+                            <button onclick="prepararVenta('${p._id}', '${p.nombre}', ${p.precio})" style="background-color: #28a745; color: white; padding: 5px 10px; border-radius: 4px; border: none; cursor: pointer;">
+                                Vender
+                            </button>
+                        </td>
                     </tr>
                 `).join('')}
             </tbody>
@@ -486,12 +490,12 @@ async function buscarProductosPorTienda() {
     const tablaProductos = document.getElementById('tablaProductos');
 
     if (!tiendaId) {
-        tablaProductos.innerHTML = '<tr><td colspan="5" style="text-align:center;">Seleccione una tienda para ver su stock.</td></tr>';
+        tablaProductos.innerHTML = '<tr><td colspan="4" style="text-align:center;">Seleccione una tienda para ver su stock.</td></tr>';
         return;
     }
 
     try {
-        tablaProductos.innerHTML = '<tr><td colspan="5" style="text-align:center;">Cargando catálogo...</td></tr>';
+        tablaProductos.innerHTML = '<tr><td colspan="4" style="text-align:center;">Cargando catálogo...</td></tr>';
 
         const res = await fetch(`${API_URL}/productos/tienda/${tiendaId}`, {
             headers: { 'Authorization': `Bearer ${tokenGlobal}` }
@@ -503,11 +507,11 @@ async function buscarProductosPorTienda() {
             const productos = extraerArray(data);
             renderizarProductos(productos, tiendaId);
         } else {
-            tablaProductos.innerHTML = `<tr><td colspan="5" style="text-align:center; color:red;">Error: ${data.error}</td></tr>`;
+            tablaProductos.innerHTML = `<tr><td colspan="4" style="text-align:center; color:red;">Error: ${data.error}</td></tr>`;
         }
     } catch (error) {
         console.error("Error buscando productos:", error);
-        tablaProductos.innerHTML = `<tr><td colspan="5" style="text-align:center; color:red;">Error de conexión.</td></tr>`;
+        tablaProductos.innerHTML = `<tr><td colspan="4" style="text-align:center; color:red;">Error de conexión.</td></tr>`;
     }
 }
 
@@ -517,7 +521,7 @@ function renderizarProductos(productos, tiendaId) {
     if (!tablaProductos) return;
 
     if (productos.length === 0) {
-        tablaProductos.innerHTML = `<tr><td colspan="5" style="text-align:center;">Esta tienda no tiene productos registrados.</td></tr>`;
+        tablaProductos.innerHTML = `<tr><td colspan="4" style="text-align:center;">Esta tienda no tiene productos registrados.</td></tr>`;
         return;
     }
 
@@ -525,22 +529,32 @@ function renderizarProductos(productos, tiendaId) {
         <thead>
             <tr>
                 <th>Producto</th>
-                <th>Stock</th>
-                <th>Precio</th>
-                <th>📋 ID del Producto</th>
-                <th>🏠 ID de la Tienda</th>
+                <th>Stock Disponible</th>
+                <th>Precio Unidad</th>
+                <th>Acción</th>
             </tr>
         </thead>
         <tbody>
-            ${productos.map(p => `
+            ${productos.map(p => {
+                const nombreSeguro = p.nombre.replace(/"/g, '&quot;').replace(/'/g, "\\'");
+
+                return `
                 <tr>
                     <td><strong>${p.nombre}</strong></td>
-                    <td><span class="badge ${p.stock > 10 ? 'badge-success' : 'badge-danger'}">${p.stock}</span></td>
+                    <td>
+                        <span class="badge ${p.stock > 10 ? 'badge-success' : 'badge-danger'}">
+                            ${p.stock} unid.
+                        </span>
+                    </td>
                     <td>$${p.precio}</td>
-                    <td style="font-family: monospace; font-size: 0.85rem; color: #a1a1aa;">${p._id}</td>
-                    <td style="font-family: monospace; font-size: 0.85rem; color: #a1a1aa;">${p.tiendaId || tiendaId}</td>
+                    <td>
+                        <button onclick="prepararVenta('${p._id}', '${nombreSeguro}', ${p.precio})" style="background-color: #28a745; color: white; padding: 5px 10px; border-radius: 4px; border: none; cursor: pointer;">
+                            Vender
+                        </button>
+                    </td>
                 </tr>
-            `).join('')}
+                `;
+            }).join('')}
         </tbody>
     `;
 }
@@ -623,82 +637,96 @@ document.getElementById('formProducto')?.addEventListener('submit', async (e) =>
     }
 });
 // ==========================================================================
-// 14. FLUJO DE VENTAS DINÁMICO (FILTROS POR ROL Y CASCADA)
+// 14. FLUJO DE VENTAS (DESDE VISOR DE STOCK) Y GENERACIÓN DE TICKET
 // ==========================================================================
 
-function llenarSelectTiendasVenta() {
-    const select = document.getElementById('selectTiendaVenta');
-    if (!select || tiendasGlobal.length === 0) return;
+// 1. Guardamos el precio en un dataset del formulario al hacer clic en "Vender"
+function prepararVenta(idProducto, nombre, precio) {
+    const inputId = document.getElementById('ventaProductoId');
+    const inputNombre = document.getElementById('ventaProductoNombre');
+    const inputCantidad = document.getElementById('ventaCantidad');
+    const formVenta = document.getElementById('ventaForm');
 
-    try {
-        const tokenData = JSON.parse(atob(tokenGlobal.split('.')[1]));
-        const miComercioId = tokenData.comercioId;
-        const miRol = tokenData.rol;
-
-        let tiendasFiltradas = [];
-
-        if (miRol === 'Admin') {
-            tiendasFiltradas = tiendasGlobal.filter(t => t.estado === 'Activa');
-        } else {
-            tiendasFiltradas = tiendasGlobal.filter(t => t.comercioId === miComercioId && t.estado === 'Activa');
+    if (inputId && inputNombre) {
+        inputId.value = idProducto;
+        inputNombre.value = nombre;
+        formVenta.dataset.precioActual = precio; 
+        
+        if (inputCantidad) {
+            inputCantidad.value = 1; 
+            inputCantidad.focus();   
         }
-
-        select.innerHTML = '<option value="">Seleccione una tienda...</option>' +
-            tiendasFiltradas.map(t => {
-                if (miRol === 'Admin') {
-                    const com = comerciosGlobal.find(c => c._id === t.comercioId);
-                    return `<option value="${t._id}">${t.nombre} (${com ? com.nombre : 'Desconocido'})</option>`;
-                }
-                return `<option value="${t._id}">${t.nombre}</option>`;
-            }).join('');
-
-    } catch (error) {
-        console.error("Error al procesar permisos de tiendas para ventas:", error);
     }
 }
 
-async function actualizarProductosVenta() {
-    const tiendaId = document.getElementById('selectTiendaVenta').value;
-    const selectProducto = document.getElementById('selectProductoVenta');
+// 2. Función para dibujar y descargar el PDF estilo Ticketera
+function generarTicketPDF(nombreProducto, cantidad, precioUnitario, comercio, sucursal, cuit) {
+    const { jsPDF } = window.jspdf;
+    
+    // Formato ticket de 80mm de ancho
+    const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: [80, 150] });
 
-    if (!tiendaId) {
-        selectProducto.innerHTML = '<option value="">Primero seleccione una tienda...</option>';
-        return;
-    }
+    const total = cantidad * precioUnitario;
+    const fecha = new Date().toLocaleString('es-AR');
 
-    try {
-        selectProducto.innerHTML = '<option value="">Cargando catálogo de productos...</option>';
+    // Cabecera del Comercio
+    doc.setFontSize(12);
+    doc.setFont("helvetica", "bold");
+    doc.text(comercio, 40, 12, { align: "center" });
 
-        const res = await fetch(`${API_URL}/productos/tienda/${tiendaId}`, {
-            headers: { 'Authorization': `Bearer ${tokenGlobal}` }
-        });
-        const data = await res.json();
-        const productos = extraerArray(data);
+    // Datos Fiscales y Sucursal
+    doc.setFontSize(9);
+    doc.setFont("helvetica", "normal");
+    doc.text(`CUIT: ${cuit}`, 40, 18, { align: "center" });
+    doc.text(`Sucursal: ${sucursal}`, 40, 23, { align: "center" });
+    doc.text(`Fecha: ${fecha}`, 40, 28, { align: "center" });
 
-        if (productos.length === 0) {
-            selectProducto.innerHTML = '<option value="">No hay productos en esta tienda</option>';
-            return;
-        }
+    doc.text("------------------------------------------------", 40, 33, { align: "center" });
 
-        selectProducto.innerHTML = '<option value="">Seleccione un producto...</option>' +
-            productos.map(p => `<option value="${p._id}">${p.nombre} ($${p.precio}) [Disponibles: ${p.stock}]</option>`).join('');
+    // Cabecera de tabla
+    doc.setFont("helvetica", "bold");
+    doc.text("Producto", 5, 38);
+    doc.text("Cant", 45, 38);
+    doc.text("Subt", 60, 38);
 
-    } catch (error) {
-        console.error("Error cargando productos para el formulario de ventas:", error);
-        selectProducto.innerHTML = '<option value="">Error al cargar catálogo</option>';
-    }
+    // Fila del producto
+    doc.setFont("helvetica", "normal");
+    const nombreCorto = nombreProducto.length > 20 ? nombreProducto.substring(0, 18) + '...' : nombreProducto;
+    doc.text(nombreCorto, 5, 45);
+    doc.text(cantidad.toString(), 48, 45);
+    doc.text(`$${total.toLocaleString()}`, 60, 45);
+
+    doc.text("------------------------------------------------", 40, 52, { align: "center" });
+
+    // Total
+    doc.setFontSize(11);
+    doc.setFont("helvetica", "bold");
+    doc.text(`TOTAL: $${total.toLocaleString()}`, 75, 59, { align: "right" });
+
+    // Pie de página
+    doc.setFontSize(8);
+    doc.setFont("helvetica", "normal");
+    doc.text("¡Gracias por su compra!", 40, 75, { align: "center" });
+    doc.text("Emitido en Paraná, Entre Ríos", 40, 80, { align: "center" });
+    doc.text("Software Dynamis", 40, 85, { align: "center" });
+
+    // Descargar
+    doc.save(`Ticket_Dynamis_${new Date().getTime()}.pdf`);
 }
 
-document.getElementById('formVenta')?.addEventListener('submit', async (e) => {
+// 3. Envío de la venta al servidor
+document.getElementById('ventaForm')?.addEventListener('submit', async (e) => {
     e.preventDefault();
 
-    const payload = {
-        productoId: document.getElementById('selectProductoVenta').value,
-        cantidad: parseInt(document.getElementById('cantidadVenta').value, 10)
-    };
+    const productoId = document.getElementById('ventaProductoId').value;
+    const nombreProducto = document.getElementById('ventaProductoNombre').value;
+    const cantidad = Number(document.getElementById('ventaCantidad').value);
+    const precioUnitario = Number(document.getElementById('ventaForm').dataset.precioActual);
+    
+    const msgElement = document.getElementById('ventaMessage'); 
 
-    if (!payload.productoId) {
-        alert('Por favor, seleccione un producto válido.');
+    if (!productoId) {
+        alert("Primero seleccioná un producto de la tabla haciendo clic en 'Vender'.");
         return;
     }
 
@@ -709,24 +737,41 @@ document.getElementById('formVenta')?.addEventListener('submit', async (e) => {
                 'Content-Type': 'application/json',
                 'Authorization': `Bearer ${tokenGlobal}`
             },
-            body: JSON.stringify(payload)
+            body: JSON.stringify({ productoId, cantidad })
         });
 
         const data = await res.json();
 
         if (res.ok) {
-            alert('✅ Venta procesada correctamente. Stock actualizado.');
-            document.getElementById('formVenta').reset();
+            if (msgElement) {
+                msgElement.innerText = "¡Venta registrada! Generando ticket...";
+                msgElement.style.color = "green";
+            }
+            
+            const selectComercio = document.getElementById('filtroComercioStock');
+            const selectTienda = document.getElementById('filtroTiendaStock');
+            
+            // Extraemos los nombres de los desplegables
+            const nombreComercio = selectComercio.options[selectComercio.selectedIndex].text;
+            const nombreTienda = selectTienda.options[selectTienda.selectedIndex].text;
+            
+            // Buscamos el CUIT en la variable global de comercios (que dibujó la tabla)
+            const comercioObj = comerciosGlobal.find(c => c._id === selectComercio.value);
+            const cuit = comercioObj ? comercioObj.cuit : 'Consumidor Final';
 
-            document.getElementById('selectProductoVenta').innerHTML = '<option value="">Primero seleccione una tienda...</option>';
+            // Ejecutamos la magia del PDF
+            generarTicketPDF(nombreProducto, cantidad, precioUnitario, nombreComercio, nombreTienda, cuit);
 
-            await cargarVentas();
-            if (typeof buscarProductosPorTienda === 'function') buscarProductosPorTienda();
+            document.getElementById('ventaForm').reset();
+            await actualizarDatosGlobales();
+            
+            if (msgElement) setTimeout(() => { msgElement.innerText = ''; }, 3000);
         } else {
-            alert(` Error al vender: ${data.error || 'Verifique el stock disponible'}`);
+            alert(data.error || "Error al registrar la venta.");
         }
     } catch (error) {
-        console.error("Error en flujo de transacciones:", error);
+        console.error("Error registrando venta:", error);
+        alert("Error de conexión con el servidor.");
     }
 });
 // ==========================================================================
@@ -748,7 +793,7 @@ socket.on('mensaje_servidor', (data) => {
         const nombreConversacion = data.rol === 'Admin' ? 'Yo' : (data.de || 'Usuario Desconocido');
 
         let cajaChat = document.getElementById(`chatAdmin_${idConversacion}`);
-        
+
         if (!cajaChat) {
             cajaChat = document.createElement('div');
             cajaChat.className = 'admin-chat-box';
@@ -769,7 +814,7 @@ socket.on('mensaje_servidor', (data) => {
 
         const msgsContainer = document.getElementById(`msgs_${idConversacion}`);
         const claseMensaje = data.rol === 'Admin' ? 'msg-propio' : 'msg-ajeno';
-        
+
         msgsContainer.innerHTML += `
             <div class="chat-msg ${claseMensaje}">
                 <span class="msg-autor">${nombreConversacion}</span>
@@ -777,7 +822,7 @@ socket.on('mensaje_servidor', (data) => {
             </div>`;
         msgsContainer.scrollTop = msgsContainer.scrollHeight;
 
-    // 2. SI SOY USUARIO NORMAL (Dueño/Empleado): Usa la ventana única
+        // 2. SI SOY USUARIO NORMAL (Dueño/Empleado): Usa la ventana única
     } else {
         const chatMessages = document.getElementById('chatMessages');
         if (!chatMessages) return;
@@ -810,7 +855,7 @@ function enviarMensajeChat(e) {
     const rolUsr = usuarioGlobal.rol || 'Empleado';
 
     socket.emit('mensaje_cliente', {
-        de: `${nombreUsr} | ${rolUsr} (${empresaUsr})`, 
+        de: `${nombreUsr} | ${rolUsr} (${empresaUsr})`,
         usuarioId: usuarioGlobal.id,
         rol: usuarioGlobal.rol,
         mensaje: input.value
@@ -823,7 +868,7 @@ function enviarMensajeAdmin(e, usuarioIdDestino) {
     e.preventDefault();
     const input = document.getElementById(`input_${usuarioIdDestino}`);
     if (!input.value.trim()) return;
-    
+
     const nombreAdmin = usuarioGlobal.nombre || 'Central';
 
     socket.emit('mensaje_cliente', {
@@ -834,4 +879,65 @@ function enviarMensajeAdmin(e, usuarioIdDestino) {
         mensaje: input.value
     });
     input.value = '';
+}
+
+
+// ==========================================================================
+// 16. RENDERIZADO DE ESTADÍSTICAS (CHART.JS)
+// ==========================================================================
+let chartIngresos = null;
+let chartProductos = null;
+
+function renderizarGraficos(ventas) {
+    if (!ventas || ventas.length === 0) return;
+
+    const ingresosPorFecha = {};
+    const cantidadesPorProducto = {};
+
+    [...ventas].reverse().forEach(v => {
+        const fecha = new Date(v.createdAt).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit' });
+        ingresosPorFecha[fecha] = (ingresosPorFecha[fecha] || 0) + v.total;
+        
+        const nombreProd = v.productoId ? v.productoId.nombre : 'Eliminado';
+        cantidadesPorProducto[nombreProd] = (cantidadesPorProducto[nombreProd] || 0) + v.cantidad;
+    });
+
+    const ctxIngresos = document.getElementById('graficoIngresos');
+    if (ctxIngresos) {
+        if (chartIngresos) chartIngresos.destroy();
+        chartIngresos = new Chart(ctxIngresos, {
+            type: 'line',
+            data: {
+                labels: Object.keys(ingresosPorFecha),
+                datasets: [{
+                    label: 'Ingresos Diarios ($)',
+                    data: Object.values(ingresosPorFecha),
+                    borderColor: '#007bff',
+                    backgroundColor: 'rgba(0, 123, 255, 0.1)',
+                    borderWidth: 2,
+                    fill: true,
+                    tension: 0.3 
+                }]
+            },
+            options: { responsive: true, maintainAspectRatio: false }
+        });
+    }
+
+    const ctxProductos = document.getElementById('graficoProductos');
+    if (ctxProductos) {
+        if (chartProductos) chartProductos.destroy();
+        chartProductos = new Chart(ctxProductos, {
+            type: 'bar',
+            data: {
+                labels: Object.keys(cantidadesPorProducto),
+                datasets: [{
+                    label: 'Unidades Vendidas',
+                    data: Object.values(cantidadesPorProducto),
+                    backgroundColor: '#28a745',
+                    borderRadius: 4
+                }]
+            },
+            options: { responsive: true, maintainAspectRatio: false }
+        });
+    }
 }

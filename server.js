@@ -81,6 +81,9 @@ io.on('connection', (socket) => {
 });
 
 // 10. Inicialización del Servidor (ATENCIÓN: usamos server.listen, no app.listen)
-server.listen(PORT, () => {
-    console.log(`🚀 Servidor Dynamis activo y escuchando en http://localhost:${PORT}`);
-});
+if (process.env.NODE_ENV !== 'test') {
+    server.listen(PORT, () => {
+        console.log(`🚀 Servidor Dynamis activo y escuchando en http://localhost:${PORT}`);
+    });
+}
+module.exports = app;

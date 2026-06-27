@@ -104,7 +104,7 @@ const importarDatos = async () => {
                 cantidad: cantidad,
                 precioUnitario: productoRandom.precio,
                 total: productoRandom.precio * cantidad,
-                createdAt: fechaRandom, // Forzamos la fecha para los gráficos futuros
+                createdAt: fechaRandom, 
                 updatedAt: fechaRandom
             });
         }

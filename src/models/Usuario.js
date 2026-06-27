@@ -5,7 +5,7 @@ const usuarioSchema = new mongoose.Schema({
     nombre: {
         type: String,
         required: true
-    },    
+    },
     apellido: {
         type: String,
         required: true
@@ -36,6 +36,7 @@ const usuarioSchema = new mongoose.Schema({
         default: 'Activo',
         enum: ['Activo', 'Inactivo']
     }
+    
 }, { timestamps: true });
 
 usuarioSchema.pre('save', async function () {

@@ -189,7 +189,7 @@ nav {
 nav button {
     width: 100%;
     background: transparent;
-    color: #94a3b8;
+    color: #2964b6;
     border: none;
     padding: 0.85rem 1rem;
     border-radius: 8px;
@@ -586,10 +586,10 @@ ul li div {
 }
 
 #secStock button {
-    background-color: var(--bg-sidebar);
+    background-color: var(--primary);
     color: var(--text-light);
     border: none;
-    padding: 0 1.5rem;
+    padding: 0.5rem 1rem;
     border-radius: 6px;
     font-weight: 700;
     cursor: pointer;
