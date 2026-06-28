@@ -2,6 +2,8 @@
 
 **Empresa de desarrollo:** Dynamis
 
+**Deploy** [[Link al deploy en Render](https://dynamis-back-end-final.onrender.com/)]
+
 API backend para la gestión de comercios, tiendas, productos y ventas de **TechRetail Solutions S.R.L.** Esta es la entrega final del proyecto: incorpora autenticación con JWT, persistencia en **MongoDB Atlas** mediante Mongoose, un módulo de **chat en tiempo real por roles** con Socket.IO, y una suite de pruebas automatizadas con Jest y Supertest.
 
 ## Tabla de contenidos
