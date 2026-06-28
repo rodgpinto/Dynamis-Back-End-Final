@@ -3,10 +3,21 @@ const app = require('../server'); // Ajustá la ruta si tu server.js está en ot
 const mongoose = require('mongoose');
 
 describe('Autenticación de Usuarios (Dynamis API)', () => {
-    
+
+    beforeAll(async () => {
+        
+        if (mongoose.connection.readyState !== 1) {
+            await new Promise((resolve) => {
+                mongoose.connection.once('connected', resolve);
+            });
+        }
+    });
+
     // Desconectamos la base de datos al terminar para que el proceso no quede colgado
     afterAll(async () => {
-        await mongoose.connection.close();
+        if (mongoose.connection.readyState !== 0) {
+            await mongoose.connection.close();
+        }
     });
 
     it('Debería iniciar sesión correctamente con credenciales válidas', async () => {

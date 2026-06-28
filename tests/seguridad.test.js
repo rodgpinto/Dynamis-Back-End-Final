@@ -6,6 +6,13 @@ describe('Seguridad de Rutas y Middleware (Dynamis API)', () => {
     let tokenValido = '';
 
     beforeAll(async () => {
+        
+        if (mongoose.connection.readyState !== 1) {
+            await new Promise((resolve) => {
+                mongoose.connection.once('connected', resolve);
+            });
+        }
+
         const res = await request(app)
             .post('/api/auth/login')
             .send({ email: 'admin@dynamis.com', password: '123' });
@@ -13,12 +20,14 @@ describe('Seguridad de Rutas y Middleware (Dynamis API)', () => {
     });
 
     afterAll(async () => {
-        await mongoose.connection.close();
+        if (mongoose.connection.readyState !== 0) {
+            await mongoose.connection.close();
+        }
     });
 
     it('Debería bloquear el acceso al historial si no se envía un Token (401 o 403)', async () => {
         const res = await request(app).get('/api/ventas');
-        
+
         expect(res.statusCode).toBeGreaterThanOrEqual(401);
         expect(res.body).toHaveProperty('error');
     });
@@ -27,7 +36,7 @@ describe('Seguridad de Rutas y Middleware (Dynamis API)', () => {
         const res = await request(app)
             .get('/api/ventas')
             .set('Authorization', `Bearer ${tokenValido}`);
-        
+
         expect(res.statusCode).toBe(200);
         expect(Array.isArray(res.body)).toBeTruthy();
     });

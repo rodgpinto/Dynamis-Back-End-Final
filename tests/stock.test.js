@@ -8,6 +8,13 @@ describe('Reglas de Negocio: Validación de Inventario', () => {
     let productoConStock;
 
     beforeAll(async () => {
+        
+        if (mongoose.connection.readyState !== 1) {
+            await new Promise((resolve) => {
+                mongoose.connection.once('connected', resolve);
+            });
+        }
+
         // 1. Conseguimos el token del administrador o vendedor
         const resLogin = await request(app)
             .post('/api/auth/login')
@@ -19,7 +26,9 @@ describe('Reglas de Negocio: Validación de Inventario', () => {
     });
 
     afterAll(async () => {
-        await mongoose.connection.close();
+        if (mongoose.connection.readyState !== 0) {
+            await mongoose.connection.close();
+        }
     });
 
     it('Debería rechazar la venta si la cantidad solicitada supera el stock actual (400)', async () => {

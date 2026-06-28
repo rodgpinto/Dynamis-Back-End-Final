@@ -6,16 +6,25 @@ describe('Seguridad de la API: Control de Acceso por Roles (RBAC)', () => {
     let tokenEmpleado = '';
 
     beforeAll(async () => {
+        
+        if (mongoose.connection.readyState !== 1) {
+            await new Promise((resolve) => {
+                mongoose.connection.once('connected', resolve);
+            });
+        }
+
         const resLogin = await request(app)
             .post('/api/auth/login')
-            .send({ email: 'vendedor@dynamis.com', password: '123' }); 
-        
+            .send({ email: 'vendedor@dynamis.com', password: '123' });
+
         // Si el login falla, guardamos un string vacío para que salte el 401
-        tokenEmpleado = resLogin.body.token || ''; 
+        tokenEmpleado = resLogin.body.token || '';
     });
 
     afterAll(async () => {
-        await mongoose.connection.close();
+        if (mongoose.connection.readyState !== 0) {
+            await mongoose.connection.close();
+        }
     });
 
     it('Debería denegar el acceso si un empleado intenta registrar un comercio nuevo', async () => {
