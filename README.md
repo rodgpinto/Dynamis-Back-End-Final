@@ -17,6 +17,7 @@ API backend para la gestión de comercios, tiendas, productos y ventas de **Tech
 - [Ejecución](#ejecución)
 - [Carga de datos de prueba (seed)](#carga-de-datos-de-prueba-seed)
 - [Pruebas automatizadas](#pruebas-automatizadas)
+- [Documentación de la API (Swagger)](#documentación-de-la-api-swagger)
 - [API — Endpoints principales](#api--endpoints-principales)
 - [WebSockets — Chat por roles](#websockets--chat-por-roles)
 - [Equipo de desarrollo](#equipo-de-desarrollo)
@@ -29,6 +30,7 @@ API backend para la gestión de comercios, tiendas, productos y ventas de **Tech
 - **ODM / Modelado:** Mongoose
 - **Autenticación:** JSON Web Tokens (jsonwebtoken) + hashing de contraseñas (bcrypt / bcryptjs)
 - **Comunicación en tiempo real:** Socket.IO
+- **Documentación de la API:** Swagger (swagger-jsdoc + swagger-ui-express)
 - **Middlewares:** CORS, validadores personalizados, dotenv
 - **Testing:** Jest + Supertest + cross-env
 - **Desarrollo:** Nodemon
@@ -133,6 +135,18 @@ Las pruebas están escritas con **Jest** y **Supertest**, y corren en modo aisla
 ```bash
 npm test
 ```
+
+## Documentación de la API (Swagger)
+
+El proyecto cuenta con documentación interactiva de la API generada con **Swagger (OpenAPI)**. Una vez levantado el servidor, se puede acceder a la interfaz de Swagger UI en:
+
+```
+http://localhost:3000/api-docs
+```
+
+Desde ahí es posible explorar todos los endpoints disponibles, ver el detalle de parámetros, cuerpos de petición (`requestBody`) y respuestas esperadas, y probar las rutas protegidas autenticándose con un Bearer Token (JWT) obtenido desde `/api/auth/login`.
+
+> En el deploy de producción, la documentación está disponible en `https://dynamis-back-end-final.onrender.com/api-docs`.
 
 ## API — Endpoints principales
 
