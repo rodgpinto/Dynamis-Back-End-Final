@@ -37,7 +37,11 @@ app.use(express.json());
 // 6. Archivos Estáticos (FrontEnd)
 app.use(express.static(path.join(__dirname, 'public')));
 
-// 7. Middlewares Específicos
+app.get('/api/ping', (req, res) => {
+    res.status(200).json({ status: 'OK', mensaje: 'Servidor activo 24/7' });
+});
+
+// 7. Middlewares Específicos (Afecta a todo lo que vaya a las rutas de negocio)
 app.use('/api', validarBodyVacio);
 
 // 8. Rutas de la API
@@ -65,25 +69,23 @@ io.on('connection', (socket) => {
     });
 
     socket.on('mensaje_cliente', (data) => {
-        
         if (data.rol === 'Admin') {
             const salaDestino = `usuario_${data.para}`;
             io.to(salaDestino).emit('mensaje_servidor', data);
-            
             io.to('sala_soporte').emit('mensaje_servidor', data);
         } else {
             io.to('sala_soporte').emit('mensaje_servidor', data);
-            
             const salaPrivada = `usuario_${data.usuarioId}`;
             io.to(salaPrivada).emit('mensaje_servidor', data);
         }
     });
 });
 
-// 10. Inicialización del Servidor (ATENCIÓN: usamos server.listen, no app.listen)
+// 10. Inicialización del Servidor
 if (process.env.NODE_ENV !== 'test') {
     server.listen(PORT, () => {
-        console.log(`🚀 Servidor Dynamis activo y escuchando en http://localhost:${PORT}`);
+        console.log(`🚀 Servidor Dynamis activo y escuchando en el puerto http://localhost:${PORT}`);
     });
 }
+
 module.exports = app;
